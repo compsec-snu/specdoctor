@@ -1,0 +1,4 @@
+pyyaml
+psutil
+readerwriterlock
+Verilog_VCD

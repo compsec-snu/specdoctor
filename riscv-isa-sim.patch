@@ -1,0 +1,82 @@
+diff --git a/fesvr/htif.cc b/fesvr/htif.cc
+index d9ff341f..935666d1 100644
+--- a/fesvr/htif.cc
++++ b/fesvr/htif.cc
+@@ -41,7 +41,7 @@ static void handle_signal(int sig)
+ 
+ htif_t::htif_t()
+   : mem(this), entry(DRAM_BASE), sig_addr(0), sig_len(0),
+-    tohost_addr(0), fromhost_addr(0), exitcode(0), stopped(false),
++    tohost_addr(0), fromhost_addr(0), spdoc_addr(0), timing_addr(0), exitcode(0), stopped(false), spdoc(false),
+     syscall_proxy(this)
+ {
+   signal(SIGINT, &handle_signal);
+@@ -124,6 +124,12 @@ void htif_t::load_program()
+     fprintf(stderr, "warning: tohost and fromhost symbols not in ELF; can't communicate with target\n");
+   }
+ 
++  // NOTE: SpecDoctor check
++  if (symbols.count("spdoc"))
++    spdoc_addr = symbols["spdoc"];
++  if (symbols.count("timing"))
++    timing_addr = symbols["timing"];
++
+   // detect torture tests so we can print the memory signature at the end
+   if (symbols.count("begin_signature") && symbols.count("end_signature"))
+   {
+@@ -191,6 +197,11 @@ int htif_t::run()
+       idle();
+     }
+ 
++    if (spdoc_addr)
++      spdoc = (bool) mem.read_uint64(spdoc_addr);
++    if (timing_addr)
++      cycle = (uint64_t) mem.read_uint64(timing_addr);
++
+     device_list.tick();
+ 
+     if (!fromhost_queue.empty() && mem.read_uint64(fromhost_addr) == 0) {
+@@ -204,6 +215,16 @@ int htif_t::run()
+   return exit_code();
+ }
+ 
++bool htif_t::spdoc_check()
++{
++  return spdoc;
++}
++
++uint64_t htif_t::spdoc_cycle()
++{
++  return cycle;
++}
++
+ bool htif_t::done()
+ {
+   return stopped;
+diff --git a/fesvr/htif.h b/fesvr/htif.h
+index d312c77e..29bca918 100644
+--- a/fesvr/htif.h
++++ b/fesvr/htif.h
+@@ -24,6 +24,9 @@ class htif_t : public chunked_memif_t
+   bool done();
+   int exit_code();
+ 
++  bool spdoc_check();
++  uint64_t spdoc_cycle();
++
+   virtual memif_t& memif() { return mem; }
+ 
+  protected:
+@@ -65,6 +68,12 @@ class htif_t : public chunked_memif_t
+   int exitcode;
+   bool stopped;
+ 
++  // NOTE: Used to signal SpecDoctor check
++  addr_t spdoc_addr;
++  bool spdoc;
++  addr_t timing_addr;
++  reg_t cycle;
++
+   device_list_t device_list;
+   syscall_t syscall_proxy;
+   bcd_t bcd;

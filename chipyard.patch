@@ -1,0 +1,401 @@
+diff --git a/build.sbt b/build.sbt
+index 5d642c1d..e9e31c93 100644
+--- a/build.sbt
++++ b/build.sbt
+@@ -132,7 +132,8 @@ lazy val chipyard = conditionalDependsOn(project in file("generators/chipyard"))
+   .dependsOn(boom, hwacha, sifive_blocks, sifive_cache, utilities, iocell,
+     sha3, // On separate line to allow for cleaner tutorial-setup patches
+     dsptools, `rocket-dsptools`,
+-    gemmini, icenet, tracegen, ariane, nvdla)
++    gemmini, icenet, tracegen, ariane, nvdla,
++    specdoctor)
+   .settings(commonSettings)
+ 
+ lazy val tracegen = conditionalDependsOn(project in file("generators/tracegen"))
+@@ -217,3 +218,7 @@ lazy val firechip = conditionalDependsOn(project in file("generators/firechip"))
+     testGrouping in Test := isolateAllTests( (definedTests in Test).value ),
+     testOptions in Test += Tests.Argument("-oF")
+   )
++
++lazy val specdoctor = (project in file("generators/specdoctor"))
++  .dependsOn(rocketchip)
++  .settings(commonSettings)
+diff --git a/common.mk b/common.mk
+index f07342de..a1f567a6 100644
+--- a/common.mk
++++ b/common.mk
+@@ -80,7 +80,7 @@ firrtl: $(FIRRTL_FILE)
+ #########################################################################################
+ # create verilog files rules and variables
+ #########################################################################################
+-REPL_SEQ_MEM = --infer-rw --repl-seq-mem -c:$(MODEL):-o:$(TOP_SMEMS_CONF)
++REPL_SEQ_MEM ?= --infer-rw --repl-seq-mem -c:$(MODEL):-o:$(TOP_SMEMS_CONF)
+ HARNESS_CONF_FLAGS = -thconf $(HARNESS_SMEMS_CONF)
+ 
+ TOP_TARGETS = $(TOP_FILE) $(TOP_SMEMS_CONF) $(TOP_ANNO) $(TOP_FIR) $(sim_top_blackboxes)
+@@ -93,7 +93,7 @@ $(TOP_TARGETS) $(HARNESS_TARGETS): firrtl_temp
+ 	@echo "" > /dev/null
+ 
+ firrtl_temp: $(FIRRTL_FILE) $(ANNO_FILE) $(VLOG_SOURCES)
+-	cd $(base_dir) && $(SBT) "project tapeout" "runMain barstools.tapeout.transforms.GenerateTopAndHarness -o $(TOP_FILE) -tho $(HARNESS_FILE) -i $(FIRRTL_FILE) --syn-top $(TOP) --harness-top $(VLOG_MODEL) -faf $(ANNO_FILE) -tsaof $(TOP_ANNO) -tdf $(sim_top_blackboxes) -tsf $(TOP_FIR) -thaof $(HARNESS_ANNO) -hdf $(sim_harness_blackboxes) -thf $(HARNESS_FIR) $(REPL_SEQ_MEM) $(HARNESS_CONF_FLAGS) -td $(build_dir)" && touch $(sim_top_blackboxes) $(sim_harness_blackboxes)
++	cd $(base_dir) && $(SBT) "project tapeout" "runMain barstools.tapeout.transforms.GenerateTopAndHarness -o $(TOP_FILE) -tho $(HARNESS_FILE) -i $(FIRRTL_FILE) --syn-top $(TOP) --harness-top $(VLOG_MODEL) -faf $(ANNO_FILE) -tsaof $(TOP_ANNO) -tdf $(sim_top_blackboxes) -tsf $(TOP_FIR) -thaof $(HARNESS_ANNO) -hdf $(sim_harness_blackboxes) -thf $(HARNESS_FIR) $(REPL_SEQ_MEM) $(HARNESS_CONF_FLAGS) -td $(build_dir)" && touch $(sim_top_blackboxes) $(sim_harness_blackboxes) && touch $(TOP_SMEMS_CONF) $(HARNESS_SMEMS_CONF)
+ # DOC include end: FirrtlCompiler
+ 
+ # This file is for simulation only. VLSI flows should replace this file with one containing hard SRAMs
+diff --git a/generators/chipyard/src/main/scala/DigitalTop.scala b/generators/chipyard/src/main/scala/DigitalTop.scala
+index ae363539..b94f9e60 100644
+--- a/generators/chipyard/src/main/scala/DigitalTop.scala
++++ b/generators/chipyard/src/main/scala/DigitalTop.scala
+@@ -26,6 +26,7 @@ class DigitalTop(implicit p: Parameters) extends System
+   with chipyard.example.CanHavePeripheryStreamingFIR // Enables optionally adding the DSPTools FIR example widget
+   with chipyard.example.CanHavePeripheryStreamingPassthrough // Enables optionally adding the DSPTools streaming-passthrough example widget
+   with nvidia.blocks.dla.CanHavePeripheryNVDLA // Enables optionally having an NVDLA
++  with specdoctor.CanHaveSpecDoctor
+ {
+   override lazy val module = new DigitalTopModule(this)
+ }
+@@ -40,4 +41,5 @@ class DigitalTopModule[+L <: DigitalTop](l: L) extends SystemModule(l)
+   with icenet.CanHavePeripheryIceNICModuleImp
+   with chipyard.example.CanHavePeripheryGCDModuleImp
+   with freechips.rocketchip.util.DontTouch
++  with specdoctor.CanHaveSpecDoctorModuleImp
+ // DOC include end: DigitalTop
+diff --git a/generators/chipyard/src/main/scala/IOBinders.scala b/generators/chipyard/src/main/scala/IOBinders.scala
+index 94fb50f4..6d2e7fc5 100644
+--- a/generators/chipyard/src/main/scala/IOBinders.scala
++++ b/generators/chipyard/src/main/scala/IOBinders.scala
+@@ -24,6 +24,8 @@ import tracegen.{HasTraceGenTilesModuleImp}
+ 
+ import scala.reflect.{ClassTag}
+ 
++import specdoctor.CanHaveSpecDoctorModuleImp
++
+ // System for instantiating binders based
+ // on the scala type of the Target (_not_ its IO). This avoids needing to
+ // duplicate harnesses (essentially test harnesses) for each target.
+@@ -404,5 +406,29 @@ class WithSimDromajoBridge extends ComposeIOBinder({
+    }
+ })
+ 
++class WithSpecDoctor extends OverrideIOBinder({
++  (system: CanHaveSpecDoctorModuleImp) => system.spdoc.map({
++    spdoc =>
++      val (checkPort, ioCells1) = IOCell.generateIOFromSignal(spdoc.check, Some("iocell_spdoc_check"))
++      val (donePort, ioCells2) = IOCell.generateIOFromSignal(spdoc.done, Some("iocell_spdoc_done"))
++      checkPort.suggestName("io_spdoc_check")
++      donePort.suggestName("io_spdoc_done")
++      val harnessFn = (th: chipyard.TestHarness) => {
++        checkPort := th.spdoc_check;
++        th.spdoc_done := donePort
++        Nil
++      }
++      Seq((Seq(checkPort, donePort), ioCells1 ++ ioCells2, Some(harnessFn)))
++  }).getOrElse(Nil)
++})
++
++class WithExtInterrupt extends OverrideIOBinder({
++  (system: HasExtInterruptsModuleImp) => {
++    val (port, ioCells) = IOCell.generateIOFromSignal(system.interrupts, Some("iocell_interrupts"))
++    port.suggestName("interrupts")
++    val harnessFn = (th: chipyard.TestHarness) => { port := th.interrupt; Nil }
++    Seq((Seq(port), ioCells, Some(harnessFn)))
++  }
++})
+ 
+ } /* end package object */
+diff --git a/generators/chipyard/src/main/scala/Subsystem.scala b/generators/chipyard/src/main/scala/Subsystem.scala
+index 99c31472..c63720e2 100644
+--- a/generators/chipyard/src/main/scala/Subsystem.scala
++++ b/generators/chipyard/src/main/scala/Subsystem.scala
+@@ -26,10 +26,13 @@ import ariane.{ArianeTile, ArianeTilesKey, ArianeCrossingKey, ArianeTileParams}
+ 
+ import testchipip.{DromajoHelper}
+ 
++import specdoctor.{CanHaveSpecDoctor, CanHaveSpecDoctorModuleImp}
++
+ trait HasChipyardTiles extends HasTiles
+   with CanHavePeripheryPLIC
+   with CanHavePeripheryCLINT
+   with HasPeripheryDebug
++  with CanHaveSpecDoctor
+ { this: BaseSubsystem =>
+ 
+   val module: HasChipyardTilesModuleImp
+@@ -83,6 +86,7 @@ trait HasChipyardTiles extends HasTiles
+ 
+ trait HasChipyardTilesModuleImp extends HasTilesModuleImp
+   with HasPeripheryDebugModuleImp
++  with CanHaveSpecDoctorModuleImp
+ {
+   val outer: HasChipyardTiles
+ }
+diff --git a/generators/chipyard/src/main/scala/TestHarness.scala b/generators/chipyard/src/main/scala/TestHarness.scala
+index a82d3a33..f08f94be 100644
+--- a/generators/chipyard/src/main/scala/TestHarness.scala
++++ b/generators/chipyard/src/main/scala/TestHarness.scala
+@@ -20,6 +20,9 @@ trait HasTestHarnessFunctions {
+ class TestHarness(implicit val p: Parameters) extends Module {
+   val io = IO(new Bundle {
+     val success = Output(Bool())
++    val spdoc_check = Input(Bool())
++    val spdoc_done = Output(Bool())
++    val interrupt = Input(Bool())
+   })
+ 
+   val dut = p(BuildTop)(p)
+@@ -33,5 +36,10 @@ class TestHarness(implicit val p: Parameters) extends Module {
+   def success = io.success
+   def harnessReset = this.reset.asBool
+ 
++  /* NOTE SpecDoctor Logic */
++  def spdoc_check = io.spdoc_check
++  def spdoc_done = io.spdoc_done
++  def interrupt = io.interrupt
++  dontTouch(io.spdoc_check)
+ }
+ 
+diff --git a/generators/chipyard/src/main/scala/config/BoomConfigs.scala b/generators/chipyard/src/main/scala/config/BoomConfigs.scala
+index e8358e95..ae536588 100644
+--- a/generators/chipyard/src/main/scala/config/BoomConfigs.scala
++++ b/generators/chipyard/src/main/scala/config/BoomConfigs.scala
+@@ -25,6 +25,28 @@ class SmallBoomConfig extends Config(
+   new freechips.rocketchip.subsystem.WithCoherentBusTopology ++  // hierarchical buses including mbus+l2
+   new freechips.rocketchip.system.BaseConfig)                    // "base" rocketchip system
+ 
++class SpecDoctorBoomConfig extends Config(
++  new chipyard.iobinders.WithUARTAdapter ++
++    new chipyard.iobinders.WithExtInterrupt ++
++    new chipyard.iobinders.WithBlackBoxSimMem ++
++    new chipyard.iobinders.WithTiedOffDebug ++
++    new chipyard.iobinders.WithSimSerial ++
++    new chipyard.iobinders.WithSpecDoctor ++
++    new testchipip.WithTSI ++
++    new chipyard.config.WithBootROM ++
++    new chipyard.config.WithUART ++
++    new chipyard.config.WithL2TLBs(1024) ++
++    new freechips.rocketchip.subsystem.WithNoMMIOPort ++
++    new freechips.rocketchip.subsystem.WithNoSlavePort ++
++    new freechips.rocketchip.subsystem.WithInclusiveCache ++
++    new freechips.rocketchip.subsystem.WithNExtTopInterrupts(1) ++
++    new specdoctor.WithSpecDoctor ++
++    new boom.common.WithSmallBooms ++
++    new boom.common.WithNBoomCores(1) ++
++    new freechips.rocketchip.subsystem.WithCoherentBusTopology ++
++    new freechips.rocketchip.system.BaseConfig)
++
++
+ class MediumBoomConfig extends Config(
+   new chipyard.iobinders.WithUARTAdapter ++
+   new chipyard.iobinders.WithTieOffInterrupts ++
+diff --git a/generators/specdoctor/src/main/scala/System.scala b/generators/specdoctor/src/main/scala/System.scala
+new file mode 100644
+index 00000000..f57fb23e
+--- /dev/null
++++ b/generators/specdoctor/src/main/scala/System.scala
+@@ -0,0 +1,37 @@
++/* SpecDoctor IO Binder */
++package specdoctor
++
++import chisel3._
++import freechips.rocketchip.config.{Field, Config}
++import freechips.rocketchip.diplomacy.LazyModuleImp
++import freechips.rocketchip.subsystem.BaseSubsystem
++
++case object SpecDoctorKey extends Field[Boolean](false)
++
++class SpecDoctorIO extends Bundle {
++  val check = Input(Bool())
++  val done = Output(Bool())
++}
++
++trait CanHaveSpecDoctor { this: BaseSubsystem =>
++  None
++}
++
++trait CanHaveSpecDoctorModuleImp extends LazyModuleImp {
++  val outer: CanHaveSpecDoctor
++  val clock: Clock
++  val reset: Reset
++
++  val spdoc = if (p(SpecDoctorKey)) {
++    val spdoc_io = IO(new SpecDoctorIO)
++    chisel3.dontTouch(spdoc_io)
++
++    Some(spdoc_io)
++  } else {
++    None
++  }
++}
++
++class WithSpecDoctor extends Config((site, here, up) => {
++  case SpecDoctorKey => true
++})
+diff --git a/generators/utilities/src/main/resources/csrc/emulator.cc b/generators/utilities/src/main/resources/csrc/emulator.cc
+index 1a5a7ac3..6b44b0b5 100644
+--- a/generators/utilities/src/main/resources/csrc/emulator.cc
++++ b/generators/utilities/src/main/resources/csrc/emulator.cc
+@@ -77,6 +77,7 @@ EMULATOR OPTIONS\n\
+                            automatically.\n\
+   -V, --verbose            Enable all Chisel printfs (cycle-by-cycle info)\n\
+        +verbose\n\
++  -t, --timing             Enable SpecDoctor cycle measurement\n\
+ ", stdout);
+ #if VM_TRACE == 0
+   fputs("\
+@@ -124,6 +125,7 @@ int main(int argc, char** argv)
+ #endif
+   char ** htif_argv = NULL;
+   int verilog_plusargs_legal = 1;
++  bool timing = false;
+ 
+   dramsim = 0;
+   opterr = 1;
+@@ -139,6 +141,7 @@ int main(int argc, char** argv)
+       {"dramsim",         no_argument,       0, 'D' },
+       {"permissive",      no_argument,       0, 'p' },
+       {"permissive-off",  no_argument,       0, 'o' },
++      {"timing",          no_argument,       0, 't' },
+ #if VM_TRACE
+       {"vcd",             required_argument, 0, 'v' },
+       {"dump-start",      required_argument, 0, 'x' },
+@@ -147,9 +150,9 @@ int main(int argc, char** argv)
+     };
+     int option_index = 0;
+ #if VM_TRACE
+-    int c = getopt_long(argc, argv, "-chm:s:r:v:Vx:Dpo", long_options, &option_index);
++    int c = getopt_long(argc, argv, "-chm:s:r:v:Vx:Dpot", long_options, &option_index);
+ #else
+-    int c = getopt_long(argc, argv, "-chm:s:r:VDpo", long_options, &option_index);
++    int c = getopt_long(argc, argv, "-chm:s:r:VDpot", long_options, &option_index);
+ #endif
+     if (c == -1) break;
+  retry:
+@@ -165,6 +168,7 @@ int main(int argc, char** argv)
+       case 'D': dramsim = 1;                break;
+       case 'p': opterr = 0;                 break;
+       case 'o': opterr = 1;                 break;
++      case 't': timing = true;              break;
+ #if VM_TRACE
+       case 'v': {
+         vcdfile = strcmp(optarg, "-") == 0 ? stdout : fopen(optarg, "w");
+@@ -298,6 +302,9 @@ done_processing:
+   // start reset off low so a rising edge triggers async reset
+   tile->reset = 0;
+   tile->clock = 0;
++  tile->io_spdoc_check = 0;
++  tile->io_interrupt = 0;
++
+   tile->eval();
+   // reset for several cycles to handle pipelined reset
+   for (int i = 0; i < 100; i++) {
+@@ -320,8 +327,18 @@ done_processing:
+   tile->reset = 0;
+   done_reset = true;
+ 
++  uint64_t spdoc_cycle = 0;
+   while (!dtm->done() && !jtag->done() && !tsi->done() &&
+          !tile->io_success && trace_count < max_cycles) {
++
++    if (tile->io_spdoc_done) {
++      if (!timing) break;
++      else tile->io_interrupt = 1;
++    } 
++
++    if (tsi->spdoc_check())
++      tile->io_spdoc_check = 1;
++
+     tile->clock = 0;
+     tile->eval();
+ #if VM_TRACE
+@@ -339,6 +356,28 @@ done_processing:
+     trace_count++;
+   }
+ 
++  int i = 0;
++  while (i < 100 && timing) {
++    spdoc_cycle = tsi->spdoc_cycle();
++
++    tile->clock = 0;
++    tile->eval();
++#if VM_TRACE
++    dump = tfp && trace_count >= start;
++    if (dump)
++      tfp->dump(static_cast<vluint64_t>(trace_count * 2));
++#endif
++
++    tile->clock = 1;
++    tile->eval();
++#if VM_TRACE
++    if (dump)
++      tfp->dump(static_cast<vluint64_t>(trace_count * 2 + 1));
++#endif
++    trace_count++;
++    i++;
++  }
++
+ #if VM_TRACE
+   if (tfp)
+     tfp->close();
+@@ -346,6 +385,9 @@ done_processing:
+     fclose(vcdfile);
+ #endif
+ 
++  if (timing)
++    fprintf(stderr, "[SpecDoctor] Cycle: %ld\n", spdoc_cycle);
++
+   if (dtm->exit_code())
+   {
+     fprintf(stderr, "*** FAILED *** via dtm (code = %d, seed %d) after %ld cycles\n", dtm->exit_code(), random_seed, trace_count);
+diff --git a/sims/verilator/Makefile b/sims/verilator/Makefile
+index 1b9276ac..d6d33efb 100644
+--- a/sims/verilator/Makefile
++++ b/sims/verilator/Makefile
+@@ -43,10 +43,11 @@ include $(base_dir)/common.mk
+ # verilator binary and flags
+ #########################################################################################
+ VERILATOR := verilator --cc --exe
++RISCV_R := $(base_dir)/riscv-tools-install
+ 
+ CXXFLAGS := \
+ 	$(CXXFLAGS) -O1 -std=c++11 \
+-	-I$(RISCV)/include \
++	-I$(RISCV_R)/include \
+ 	-I$(dramsim_dir) \
+ 	-D__STDC_FORMAT_MACROS \
+ 	$(EXTRA_SIM_CC_FLAGS)
+@@ -61,7 +62,7 @@ VERILATOR_CC_OPTS = \
+ 	-CFLAGS "$(CXXFLAGS) -DTEST_HARNESS=V$(VLOG_MODEL) -DVERILATOR" \
+ 	-CFLAGS "-I$(build_dir) -include $(build_dir)/$(long_name).plusArgs -include $(build_dir)/verilator.h" \
+ 	-LDFLAGS "$(LDFLAGS)" \
+-	$(RISCV)/lib/libfesvr.a \
++	$(RISCV_R)/lib/libfesvr.a \
+ 	$(dramsim_lib)
+ 
+ # default flags added for ariane
+diff --git a/tapeout.patch b/tapeout.patch
+new file mode 100644
+index 00000000..ec96842e
+--- /dev/null
++++ b/tapeout.patch
+@@ -0,0 +1,21 @@
++--- tools/barstools/tapeout/src/main/scala/transforms/Generate.scala	2021-05-28 11:55:38.099728707 +0900
+++++ tools/barstools/tapeout/src/main/scala/transforms/Generate_new.scala	2021-05-28 11:55:30.771857608 +0900
++@@ -13,6 +13,8 @@
++ import net.jcazevedo.moultingyaml._
++ import logger.LazyLogging
++ 
+++import specdoctor._
+++
++ trait HasTapeoutOptions { self: ExecutionOptionsManager with HasFirrtlOptions =>
++   var tapeoutOptions = TapeoutOptions()
++ 
++@@ -163,7 +165,8 @@
++ 
++   val topTransforms = Seq(
++     new ReParentCircuit,
++-    new RemoveUnusedModules
+++    new RemoveUnusedModules,
+++    new SpdocInstr
++   )
++ 
++   lazy val rootCircuitTarget = CircuitTarget(harnessTop.get)

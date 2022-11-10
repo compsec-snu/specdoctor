@@ -1,0 +1,2288 @@
+diff --git a/.github/CODEOWNERS b/.github/CODEOWNERS
+deleted file mode 100644
+index e41a54f2..00000000
+--- a/.github/CODEOWNERS
++++ /dev/null
+@@ -1 +0,0 @@
+-*       @freechipsproject/firrtl-reviewers
+diff --git a/.github/ISSUE_TEMPLATE/bug-report.md b/.github/ISSUE_TEMPLATE/bug-report.md
+deleted file mode 100644
+index 8c41c685..00000000
+--- a/.github/ISSUE_TEMPLATE/bug-report.md
++++ /dev/null
+@@ -1,35 +0,0 @@
+----
+-name: Bug Report
+-about: Report a problem you experienced with FIRRTL
+-labels: improvement=BugFix
+----
+-
+-### Checklist
+-
+-- [ ] Did you specify the current behavior?
+-- [ ] Did you specify the expected behavior?
+-- [ ] Did you provide a code example showing the problem?
+-- [ ] Did you describe your environment?
+-- [ ] Did you specify relevant external information?
+-
+-### What is the current behavior?
+-
+-### What is the expected behavior?
+-
+-### Steps to Reproduce
+-
+-<!-- How can someone else reproduce the problem you're seeing? -->
+-<!-- It's very helpful to include a full example of a failing Chisel or FIRRTL program! -->
+-<!-- Include a stack trace if you have it! -->
+-
+-### Your environment
+-
+-<!-- Please tell us a little about your environment -->
+-
+-- Chisel Verions: <!-- e.g., 3.2.0 -->
+-- OS: <!-- e.g., Linux knight 4.4.0-92-generic #115-Ubuntu SMP Thu Aug 10 09:04:33 UTC 2017 x86_64 x86_64 x86_64 GNU/Linux -->
+-- Verilator version: <!-- e.g., 4.008 -->
+-
+-### External Information
+-
+-<!-- Was this discussed anywhere else, e.g., Twitter, Gitter, StackOverflow? Provide direct links if available! -->
+diff --git a/.github/ISSUE_TEMPLATE/feature-request.md b/.github/ISSUE_TEMPLATE/feature-request.md
+deleted file mode 100644
+index 9f84d41d..00000000
+--- a/.github/ISSUE_TEMPLATE/feature-request.md
++++ /dev/null
+@@ -1,32 +0,0 @@
+----
+-name: Feature Request
+-about: Request a new feature to be added to FIRRTL
+----
+-
+-### Checklist
+-
+-- [ ] Did you write out a description of the feature you want to see?
+-- [ ] Did you look around for any related features?
+-- [ ] Did you specify relevant external information?
+-
+-### Feature Description
+-
+-<!-- What type of behavior, API, or feature would you like FIRRTL to have? -->
+-
+-### Type of Feature
+-
+-<!-- Choose one or more from the following: -->
+-<!--   - performance improvement            -->
+-<!--   - documentation                      -->
+-<!--   - code refactoring                   -->
+-<!--   - code cleanup                       -->
+-<!--   - backend code generation            -->
+-<!--   - new feature/API                    -->
+-
+-### Related Features
+-
+-<!-- Is there anything in the codebase that can do this right now or is substantially related? -->
+-
+-### External Information
+-
+-<!-- Was this discussed anywhere else, e.g., Twitter, Gitter, StackOverflow? Provide direct links if available! -->
+diff --git a/.github/PULL_REQUEST_TEMPLATE.md b/.github/PULL_REQUEST_TEMPLATE.md
+deleted file mode 100644
+index 77abae1d..00000000
+--- a/.github/PULL_REQUEST_TEMPLATE.md
++++ /dev/null
+@@ -1,50 +0,0 @@
+-### Contributor Checklist
+-
+-- [ ] Did you add Scaladoc to every public function/method?
+-- [ ] Did you update the FIRRTL spec to include every new feature/behavior?
+-- [ ] Did you add at least one test demonstrating the PR?
+-- [ ] Did you delete any extraneous printlns/debugging code?
+-- [ ] Did you specify the type of improvement?
+-- [ ] Did you state the API impact?
+-- [ ] Did you specify the code generation impact?
+-- [ ] Did you request a desired merge strategy?
+-- [ ] Did you add text to be included in the Release Notes for this change?
+-
+-#### Type of Improvement
+-
+-<!-- Choose one or more from the following: -->
+-<!--   - bug fix                            -->
+-<!--   - performance improvement            -->
+-<!--   - documentation                      -->
+-<!--   - code refactoring                   -->
+-<!--   - code cleanup                       -->
+-<!--   - backend code generation            -->
+-<!--   - new feature/API                    -->
+-
+-#### API Impact
+-
+-<!-- How would this affect the current API? Does this add, extend, deprecate, remove, or break any existing API? -->
+-
+-#### Backend Code Generation Impact
+-
+-<!-- Does this change any generated Verilog?  -->
+-<!-- How does it change it or in what circumstances would it?  -->
+-
+-#### Desired Merge Strategy
+-
+-<!-- If approved, how should this PR be merged? -->
+-<!-- Options are: -->
+-<!--   - Squash: The PR will be squashed and merged (choose this if you have no preference. -->
+-<!--   - Rebase: You will rebase the PR onto master and it will be merged with a merge commit. -->
+-
+-#### Release Notes
+-<!--
+-Text from here to the end of the body will be considered for inclusion in the release notes for the version containing this pull request.
+--->
+-
+-### Reviewer Checklist (only modified by reviewer)
+-- [ ] Did you add the appropriate labels?
+-- [ ] Did you mark the proper milestone (1.2.x, 1.3.0, 1.4.0) ?
+-- [ ] Did you review?
+-- [ ] Did you check whether all relevant Contributor checkboxes have been checked?
+-- [ ] Did you mark as `Please Merge`?
+diff --git a/.gitignore b/.gitignore
+index f907e043..13fadcc9 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -40,6 +40,7 @@ spec/spec.out
+ spec/spec.synctex.gz
+ notes/*.docx
+ test_run_dir
++regress/
+ 
+ .project
+ 
+diff --git a/.travis.yml b/.travis.yml
+deleted file mode 100644
+index d965e680..00000000
+--- a/.travis.yml
++++ /dev/null
+@@ -1,97 +0,0 @@
+-language: scala
+-sudo: false
+-
+-cache:
+-  directories:
+-    $HOME/.ivy2
+-    $HOME/.sbt
+-    $INSTALL_DIR
+-
+-git:
+-  depth: 10
+-
+-env:
+-  global:
+-    INSTALL_DIR=$TRAVIS_BUILD_DIR/install
+-    VERILATOR_ROOT=$INSTALL_DIR
+-    PATH=$PATH:$VERILATOR_ROOT/bin:$TRAVIS_BUILD_DIR/utils/bin
+-    SBT_ARGS="-Dsbt.log.noformat=true"
+-
+-before_script:
+-  - OLDEST_SHARED=`git log --format=%H $TRAVIS_COMMIT_RANGE | tail -n1`
+-  - OLDEST_COMMIT=`git log --format=%H | tail -n1`
+-  - if [ $OLDEST_SHARED == $OLDEST_COMMIT ]; then git fetch --unshallow; fi
+-
+-stages:
+-  - prepare
+-  - test
+-
+-# We do not use the built-in tests as generated by using multiple Scala
+-# versions because the cache is not shared between stages with any
+-# environmental differences.
+-# Instead, we specify the version of Scala manually for each test (or leave it
+-# as the default as defined in FIRRTL's build.sbt).
+-jobs:
+-  include:
+-    # Because these write to the same install directory, they must run in the
+-    # same script
+-    - stage: prepare
+-      name: "Install: [Verilator, Yosys]"
+-      script:
+-        - bash .install_verilator.sh
+-        - verilator --version
+-        - bash .install_yosys.sh
+-        - yosys -V
+-    - stage: test
+-      name: "Unidoc builds (no warnings)"
+-      script:
+-        - sbt $SBT_ARGS unidoc
+-    - stage: test
+-      name: "Tests: FIRRTL (2.12)"
+-      script:
+-        - verilator --version
+-        - sbt $SBT_ARGS test
+-    - stage: test
+-      name: "Tests: FIRRTL (2.11)"
+-      script:
+-        - verilator --version
+-        - sbt ++2.11.12 $SBT_ARGS test
+-    - stage: test
+-      name: "Tests: chisel3 (2.12)"
+-      script:
+-        - verilator --version
+-        - sbt $SBT_ARGS clean assembly publishLocal
+-        - bash .run_chisel_tests.sh
+-    - stage: test
+-      name: "Formal equivalence: RocketCore"
+-      script:
+-        - yosys -V
+-        - "travis_wait 30 sleep 1800 &"
+-        - ./.run_formal_checks.sh RocketCore
+-    - stage: test
+-      name: "Formal equivalence: FPU"
+-      script:
+-        - yosys -V
+-        - "travis_wait 30 sleep 1800 &"
+-        - ./.run_formal_checks.sh FPU
+-    - stage: test
+-      name: "Formal equivalence: ICache"
+-      script:
+-        - yosys -V
+-        - "travis_wait 30 sleep 1800 &"
+-        - ./.run_formal_checks.sh ICache
+-    - stage: test
+-      name: "Formal equivalence: small expression-tree stress tests"
+-      script:
+-        - yosys -V
+-        - "travis_wait 30 sleep 1800 &"
+-        - ./.run_formal_checks.sh Ops
+-        - ./.run_formal_checks.sh AddNot
+-    - stage: test
+-      script:
+-        - benchmark/scripts/benchmark_cold_compile.py -N 2 --designs regress/ICache.fir --versions HEAD
+-    - stage: test
+-      name: "[Release Branch] Check Binary-compatibility"
+-      script:
+-        - sbt compile
+-        - sbt +mimaReportBinaryIssues
+diff --git a/covDump.py b/covDump.py
+new file mode 100755
+index 00000000..c0399135
+--- /dev/null
++++ b/covDump.py
+@@ -0,0 +1,155 @@
++#!/usr/bin/python3.6
++
++""" 
++FIRRTL Compiler can not instrument system task
++To continue after fuzz end, coverage map has to be saved.
++Also, coverage map has to be restored.
++
++It simply instruments store, and restore coverage map to
++input verilog file using hierarchy.txt.
++"""
++
++import sys
++import argparse
++
++""" Recursively find paths to all covMap in module """
++def findCovPath(modInst, modCovSize, module):
++
++    if module not in list(modInst.keys()):
++        return []
++
++    covPaths = []
++    covSize = modCovSize[module]
++    if not modInst[module] and covSize == 0:
++        covPaths = []
++    elif not modInst[module]:
++        covPaths = [ module + '_cov']
++    else:
++        if covSize != 0:
++            covPaths.append(module + '_cov')
++        for (instance, instModule) in modInst[module]:
++            paths = findCovPath(modInst, modCovSize, instModule)
++            for path in paths:
++                covPaths.append(instance + '.' + path)
++    
++    return covPaths
++
++def main():
++    parser = argparse.ArgumentParser(description='Argparser for save/restore coverage map instrument')
++    
++    parser.add_argument('--vfile', required=True, help='Input verilog file')
++    parser.add_argument('--top', required=True, help='Top level module')
++    parser.add_argument('--hier', required=True, help='Hierarchy file')
++    
++    args = parser.parse_args()
++    
++    vfile = args.vfile
++    new_vfile = vfile[:-2] + '_tmp.v'
++    hierarchy = args.hier
++    toplevel = args.top
++    
++    modInst = {}
++    modCovSize = {}
++    
++    fd = open(hierarchy, 'r')
++    while True:
++        line = fd.readline()
++        if not line: break
++        splits = line.split('\t')
++        if splits[0] != '':
++            module = splits[0]
++            numInst = splits[1]
++            covSize = int(splits[2][:-1])
++            instances = []
++            for i in range(int(numInst)):
++                inLine = fd.readline()
++                if not inLine: break
++                inSplits = inLine.split('\t')
++    
++                instance = inSplits[1]
++                instModule = inSplits[2][:-1]
++                instances.append((instance, instModule))
++    
++            modInst[module] = instances
++            modCovSize[module] = covSize
++    fd.close()
++    
++    covPaths = findCovPath(modInst, modCovSize, toplevel)
++
++    covSizes = []
++    for path in covPaths:
++        last = path.split('.')[-1]
++        lastModule = last[:-4]
++        covSizes.append(modCovSize[lastModule])
++
++    covPathSize = list(zip(covPaths, covSizes))
++
++    topPaths = []
++    for path in covPaths:
++        topPaths.append(toplevel + '.' + path)
++        print(toplevel + '.' + path)
++
++    fd = open(vfile, 'r')
++    nfd = open(new_vfile, 'w')
++
++    nfd.write('`define STRINGIFY(x) `"x`"\n')
++    nfd.write('`define CONCAT(x,y) x/y\n')
++    nfd.write('`define INDEX(x,y) x-y\n\n')
++    while True:
++        line = fd.readline()
++        if not line: break
++        if 'module ' + toplevel in line:
++            nfd.write(line)
++            nfd.write('`ifdef MULTICORE\n')
++            nfd.write('  input         cov_store,\n')
++            nfd.write('  input         cov_restore,\n')
++            nfd.write('  input [7:0]   proc_num,\n')
++            nfd.write('`endif\n')
++            while True:
++                inLine = fd.readline()
++                if not inLine: break
++                if ');' in inLine:
++                    nfd.write(');\n')
++
++                    nfd.write('`ifdef MULTICORE\n')
++                    nfd.write('  integer i;\n')
++                    nfd.write('  integer fd;\n')
++                    nfd.write('  integer c;\n')
++                    nfd.write('  always @(posedge clock) begin\n')
++                    nfd.write('    if (cov_restore) begin\n')
++                    
++                    for (path, size) in covPathSize:
++                        nfd.write('      fd = $fopen(`STRINGIFY(`CONCAT(`OUT,covmap/{}.dat)), "r");\n'.format(path))
++                        nfd.write('      if (fd == 0)\n')
++                        nfd.write('        $display("No saved %s, starting from zero", "{}");\n'.format(path))
++                        nfd.write('      else begin\n')
++                        nfd.write('        for (i=0; i<{}; i=i+1) begin\n'.format(size))
++                        nfd.write('          c = $fgetc(fd);\n');
++                        nfd.write('          {}[i] = c[0];\n'.format(path))
++                        nfd.write('        end\n')
++                        nfd.write('        $fclose(fd);\n')
++                        nfd.write('      end\n')
++
++                    nfd.write('    end\n')
++                    nfd.write('    if (cov_store) begin\n')
++
++                    for (path, size) in covPathSize:
++                        nfd.write('      fd = $fopen($sformatf(`STRINGIFY(`CONCAT(`OUT,`INDEX(covmap,%0d/{}.dat))), proc_num), "w");\n'.format(path))
++                        nfd.write('      for (i=0; i<{}; i=i+1)\n'.format(size))
++                        nfd.write('        $fwrite(fd, "%0b", {}[i]);\n'.format(path))
++                        nfd.write('      $fclose(fd);\n')
++                    nfd.write('    end\n')
++                    nfd.write('  end\n')
++                    nfd.write('`endif\n')
++                    break
++                else:
++                    nfd.write(inLine)
++        else:
++            nfd.write(line)
++
++    fd.close()
++    nfd.close()
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/regress/retop_firrtl.py b/regress/retop_firrtl.py
+new file mode 100755
+index 00000000..c4fe1ff9
+--- /dev/null
++++ b/regress/retop_firrtl.py
+@@ -0,0 +1,60 @@
++#!/usr/bin/python
++
++import sys
++import os
++import re
++from collections import defaultdict
++from split_firrtl import split_firrtl
++
++def get_submods(modules):
++    submods = defaultdict(list)
++    pattern = re.compile('\s*inst\s+\S+\s+of\s+(\S+)\s+.*')
++
++    for mod, lines in modules.iteritems():
++        for line in lines:
++            m = pattern.match(line)
++            if m:
++                submods[mod].append(m.group(1))
++    return submods
++
++def submods_of(submodules, top):
++    mods = [top]
++
++    to_visit = submodules[top]
++    while len(to_visit) > 0:
++        head = to_visit.pop(0)
++        if not head in mods:
++            mods.append(head)
++            to_visit.extend(submodules[head])
++    return mods
++
++if __name__ == "__main__":
++    def error_out():
++        usage = "Usage: {} newtop infile outfile".format(os.path.basename(sys.argv[0]))
++        print(usage)
++        sys.exit(-1)
++    # Check number of arguments
++    if len(sys.argv) != 4:
++        error_out()
++    newtop = sys.argv[1]
++    infile = sys.argv[2]
++    outfile = sys.argv[3]
++    if not(os.path.isfile(infile)) :
++        print("infile must be a valid file!")
++        error_out()
++
++    with open(infile, "r") as f:
++        modules = split_firrtl(f.readlines())
++
++    if not(newtop in modules):
++        print("newtop must actually be a module!")
++        error_out()
++
++    submods = get_submods(modules)
++    new_mods = submods_of(submods, newtop)
++
++    with open(outfile, "w") as f:
++        f.write('circuit {} :\n'.format(newtop))
++        for mod in new_mods:
++            for line in modules[mod]:
++                f.write(line)
+diff --git a/regress/split_firrtl.py b/regress/split_firrtl.py
+new file mode 100755
+index 00000000..3b8945b3
+--- /dev/null
++++ b/regress/split_firrtl.py
+@@ -0,0 +1,44 @@
++#!/usr/bin/python
++
++import sys
++import os
++import re
++from collections import defaultdict
++
++# Takes firrtl text, returns a dict from module name to module definition
++def split_firrtl(firrtl_lines):
++    modules = defaultdict(list)
++    current_mod = ""
++
++    pattern = re.compile('\s*(?:ext)?module\s+(\S+)\s*:\s*')
++    for line in firrtl_lines:
++        m = pattern.match(line)
++        if m:
++            current_mod = m.group(1)
++        if current_mod:
++            modules[current_mod].append(line)
++    return modules
++
++if __name__ == "__main__":
++    def error_out():
++        usage = "Usage: {} infile outdir".format(os.path.basename(sys.argv[0]))
++        print(usage)
++        sys.exit(-1)
++    # Check number of arguments
++    if len(sys.argv) != 3:
++        error_out()
++    infile = sys.argv[1]
++    outdir = sys.argv[2]
++    if not(os.path.isfile(infile)) :
++        print("infile must be a valid file!")
++        error_out()
++    if not(os.path.isdir(outdir)) :
++        print("outdir must be a valid directory!")
++        error_out()
++
++    with open(infile, "r") as f:
++        modules = split_firrtl(f.readlines())
++    for name, body in modules.iteritems():
++        with open(os.path.join(outdir, name + ".fir"), 'w') as w:
++            for line in body:
++                w.write(line)
+diff --git a/src/main/scala/firrtl/Visitor.scala b/src/main/scala/firrtl/Visitor.scala
+index 084a3006..092aa234 100644
+--- a/src/main/scala/firrtl/Visitor.scala
++++ b/src/main/scala/firrtl/Visitor.scala
+@@ -301,16 +301,17 @@ class Visitor(infoMode: InfoMode) extends AbstractParseTreeVisitor[FirrtlNode] w
+         case "reg" =>
+           val name = ctx.id(0).getText
+           val tpe = visitType(ctx.`type`())
+-          val (reset, init) = {
++          val (reset, init, rinfo) = {
+             val rb = ctx.reset_block()
+             if (rb != null) {
+               val sr = rb.simple_reset.simple_reset0()
+-              (visitExp(sr.exp(0)), visitExp(sr.exp(1)))
++              val innerInfo = if (info == NoInfo) visitInfo(Option(rb.info), ctx) else info
++              (visitExp(sr.exp(0)), visitExp(sr.exp(1)), innerInfo)
+             }
+             else
+-              (UIntLiteral(0, IntWidth(1)), Reference(name, tpe))
++              (UIntLiteral(0, IntWidth(1)), Reference(name, tpe), info)
+           }
+-          DefRegister(info, name, tpe, visitExp(ctx_exp(0)), reset, init)
++          DefRegister(rinfo, name, tpe, visitExp(ctx_exp(0)), reset, init)
+         case "mem" => visitMem(ctx)
+         case "cmem" =>
+           val (tpe, size) = visitCMemType(ctx.`type`())
+diff --git a/src/main/scala/specdoctor/graphLedger.scala b/src/main/scala/specdoctor/graphLedger.scala
+new file mode 100644
+index 00000000..bda16000
+--- /dev/null
++++ b/src/main/scala/specdoctor/graphLedger.scala
+@@ -0,0 +1,670 @@
++// Copyright (C) 2011-2012 the original author or authors.
++// See the LICENCE.txt file distributed with this work for additional
++// information regarding copyright ownership.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++// TODO: Fill in
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package specdoctor
++
++import firrtl._
++import firrtl.ir._
++
++import scala.reflect.ClassTag
++import scala.collection.mutable.ListBuffer
++import scala.collection.mutable
++
++
++// graphLedger sweeps fir file, build graphs of elements
++object Node {
++  val types = Set("Port", "DefWire", "DefRegister", "DefNode", "DefMemory", "WDefInstance")
++
++  def apply(node: FirrtlNode): Node = {
++    assert(Node.types.contains(node.getClass.getSimpleName),
++      s"${node.serialize} is not an instance of Port/DefStatement\n")
++
++    val name = node match {
++      case port: Port => port.name
++      case wire: DefWire => wire.name
++      case reg: DefRegister => reg.name
++      case nod: DefNode => nod.name
++      case mem: DefMemory => mem.name
++      case winst: WDefInstance => winst.name
++      case _ =>
++        throw new Exception(s"${node.serialize} does not have name")
++    }
++    new Node(node, name)
++  }
++
++  def hasType(n: FirrtlNode): Boolean = types.contains(n.getClass.getSimpleName)
++
++  def findName(expr: Expression): String = expr match {
++    case WRef(refName, _, _, _) => refName
++    case WSubField(e, _, _, _) => findName(e)
++    case WSubIndex(e, _, _, _) => findName(e)
++    case WSubAccess(e, _, _, _) => findName(e)
++    case Reference(refName, _) => refName
++    case SubField(e, _, _) => findName(e)
++    case SubIndex(e, _, _) => findName(e)
++    case SubAccess(e, _, _) => findName(e)
++    case _ => // Mux, DoPrim, etc
++      throw new Exception(s"${expr.serialize} does not have statement")
++  }
++
++  //noinspection ScalaStyle
++  def findNames(expr: Expression): Set[String] = expr match {
++    case WRef(refName, _, _, _) => Set(refName)
++    case WSubField(e, _, _, _) => findNames(e)
++    case WSubIndex(e, _, _, _) => findNames(e)
++    case WSubAccess(e, _, _, _) => findNames(e)
++    case Reference(refName, _) => Set(refName)
++    case SubField(e, _, _) => findNames(e)
++    case SubIndex(e, _, _) => findNames(e)
++    case SubAccess(e, _, _) => findNames(e)
++    case Mux(_, tval, fval, _) => findNames(tval) ++ findNames(fval)
++    case DoPrim(_, args, _, _) => {
++      var set = Set[String]()
++      for (arg <- args) {
++        set = set ++ findNames(arg)
++      }
++      set
++    }
++    case _ => Set[String]()
++  }
++
++}
++
++class Node(val node: FirrtlNode, val name: String) {
++
++  def serialize: String = this.node.serialize
++
++  def get[T <: FirrtlNode : ClassTag]: T = node match {
++    case t: T => t
++    case _ =>
++      throw new Exception(s"${node.serialize} mismatch")
++  }
++
++  def c: String = this.node.getClass.getSimpleName
++
++  //noinspection ScalaStyle
++  /* Check if Node is used for explicit data flow */
++  def usedIn(expr: Expression, imp: Boolean = true): Boolean = expr match {
++    case WRef(refName, _, _, _) => refName == name
++    case WSubField(e, _, _, _) => usedIn(e)
++    case WSubIndex(e, _, _, _) => usedIn(e) // Actually, it is not used in loFirrtl
++    case WSubAccess(e, _, _, _) => usedIn(e) // This too
++    case Reference(refName, _) => refName == name
++    case SubField(e, _, _) => usedIn(e)
++    case SubIndex(e, _, _) => usedIn(e)
++    case SubAccess(e, _, _) => usedIn(e)
++    case Mux(cond, tval, fval, _) =>
++      if (imp) usedIn(cond) || usedIn(tval) || usedIn(fval) // Catch implicit data flow
++      else usedIn(tval) || usedIn(fval)
++    case DoPrim(_, args, _, _) => {
++      var used = false
++      for (arg <- args) {
++        used = used | usedIn(arg)
++      }
++      used
++    }
++    case _ => false
++  }
++
++  /* Get port name of the expression for this node */
++  def portIn(expr: Expression): Set[(String, Seq[String])] = {
++    val ret = _getPort(expr).map((name, _))
++    // Connected WDefInstance should have at lead one connected port
++    assert(ret.nonEmpty, s"Does not have port: [${expr.serialize}]")
++
++    ret
++  }
++
++  //noinspection ScalaStyle
++  def _getPort(expr: Expression): Set[Seq[String]] = expr match {
++    // WDefInstance
++    case WSubField(e, n, _, _) => e match {
++      case ref: WRef if (ref.name == name) => Set(Seq(n))
++      case _ => _getPort(e).map(_ :+ n)
++    }
++    case WSubAccess(e, i, _, _) => e match {
++      case ref: WRef if (ref.name == name) =>
++        throw new NotImplementedError(s"_getPort: ${expr.serialize}")
++      case _ => _getPort(e)
++    }
++    case wsa: WSubAccess => _getPort(wsa.expr)
++    case wsi: WSubIndex => _getPort(wsi.expr)
++    case Mux(cond, tval, fval, _) => _getPort(cond) ++ _getPort(tval) ++ _getPort(fval)
++    case DoPrim(_, args, _, _) => args.map(_getPort(_)).reduce(_++_)
++    case _ => Set()
++  }
++}
++
++// graphLedger
++// 1) Generate graph which consists of Statement (DefRegister, DefNode
++// WDefInstance, Port)
++// 2) Find all memory related to the 'Valid' io signals
++// TODO: 3) Find all components controlling the memory related to the 'Valid' io signals
++// TODO: 4) Continue over module boundary
++class graphLedger(val module: DefModule) {
++  val mName = module.name
++  val mPorts = module.ports.toSet
++
++  private val Nodes = mutable.Map[String, Node]()
++  private val G = mutable.Map[String, Set[String]]()
++  private val R = mutable.Map[String, Set[String]]()
++  private val expG = mutable.Map[String, Set[String]]()
++
++  // r: reverse, N: node, E: Expression, M: mem, I: instance, P: port, 2: (sink) -> (source)
++  private val rN2IP = mutable.Map[String, Set[(String, String)]]()
++  private val rN2MP = mutable.Map[String, Set[(String, String)]]()
++  private val rMP2N = mutable.Map[(String, String), Map[String, String]]()
++  // We use IP2E instead of IP2N because Expression preserves the connection info
++  private val rIP2E = mutable.Map[(String, String), Expression]()
++
++  val N2E = mutable.Map[String, Expression]()
++
++  private lazy val memorys: Set[DefMemory] = getNodes[DefMemory]
++  private lazy val instances: Set[WDefInstance] = getNodes[WDefInstance]
++
++  private val visited: mutable.Set[String] = mutable.Set()
++
++  def getNodes[T <: FirrtlNode : ClassTag]: Set[T] = {
++    Nodes.map(_._2.node).flatMap {
++      case e: T => Some(e)
++      case _ => None
++    }.toSet
++  }
++
++  def IP2E: Map[(String, String), Expression] = rIP2E.toMap
++
++  def parse: Unit = {
++    this.module match {
++      case ext: ExtModule =>
++        print(s"$mName is external module\n")
++      case mod: Module =>
++        buildG
++        reverseG
++    }
++  }
++
++  def clear: Unit = {
++    visited.clear
++  }
++
++  private def buildG: Unit = {
++    this.module foreachPort findNode
++    this.module foreachStmt findNode
++
++    for ((n, _) <- G) {
++      val sinks = ListBuffer[String]()
++      this.module foreachStmt findEdge(Nodes(n), sinks)
++      G(n) = sinks.toSet
++
++      expG(n) = Set[String]()
++    }
++
++    for ((n, _) <- expG) {
++      val sinks = ListBuffer[String]()
++      this.module foreachStmt findEdgeExp(Nodes(n), sinks)
++      expG(n) = sinks.toSet
++    }
++  }
++
++  private def reverseG: Unit = {
++    for ((n, _) <- G) {
++      val sources = ListBuffer[String]()
++      for ((m, sinks) <- G) {
++        if (sinks.contains(n)) {
++          sources.append(m)
++        }
++      }
++      R(n) = sources.toSet
++    }
++  }
++
++  private def findNode(s: FirrtlNode): Unit = {
++    if (Node.hasType(s)) {
++      val n = Node(s)
++      Nodes(n.name) = n
++      G(n.name) = Set[String]()
++    }
++
++    s match {
++      case stmt: Statement =>
++        stmt foreachStmt findNode
++      case other => Unit
++    }
++  }
++
++  private def findEdgeExp(n: Node, sinks: ListBuffer[String])(s: Statement): Unit = {
++    s match {
++      case reg: DefRegister if (n.usedIn(reg.reset, false)) =>
++        sinks.append(reg.name)
++      case nod: DefNode if (n.usedIn(nod.value, false)) =>
++        sinks.append(nod.name)
++      case Connect(_, l, e) if (n.usedIn(e, false)) =>
++        sinks.append(Node.findName(l))
++      case _ => Unit
++    }
++
++    s foreachStmt findEdgeExp(n, sinks)
++  }
++
++  //noinspection ScalaStyle
++  /* Find explicit data flow edges */
++  private def findEdge(n: Node, sinks: ListBuffer[String])(s: Statement): Unit = {
++    s match {
++      case reg: DefRegister =>
++        if (n.usedIn(reg.reset)) {
++          sinks.append(reg.name)
++        }
++      case nod: DefNode =>
++        if (n.usedIn(nod.value)) {
++          sinks.append(nod.name)
++
++          updateN2XP(nod.name, nod.value, n)
++        }
++        updateN2E(nod.name, nod.value)
++      case Connect(_, l, e) =>
++        val lName = Node.findName(l)
++        if (n.usedIn(e)) {
++          sinks.append(lName)
++
++          updateN2XP(lName, e, n)
++          updateXP2X(lName, l, e, n)
++          // updateP2E(lName, e)
++        }
++        updateN2E(lName, e)
++      case _ => Unit // Port, DefWire, DefMemory, WDefInstance
++    }
++
++    s foreachStmt findEdge(n, sinks)
++  }
++
++  // rN2IP, rN2MP update
++  private def updateN2XP(sink: String, srcE: Expression, node: Node): Unit = {
++    node.c match {
++      case "WDefInstance" =>
++        rN2IP(sink) = rN2IP.getOrElse(sink, Set()) ++
++          node.portIn(srcE).map(x => (x._1, x._2.head))
++      case "DefMemory" =>
++        rN2MP(sink) = rN2MP.getOrElse(sink, Set()) ++
++          node.portIn(srcE).map(x => (x._1, x._2.head))
++      case _ => Unit
++    }
++  }
++
++  // rIP2E, rMP2N update
++  private def updateXP2X(sink: String, sinkE: Expression, srcE: Expression, node: Node): Unit = {
++    Seq(instances, memorys).map(_.exists(_.name == sink)) match {
++      case Seq(true, true) =>
++        throw new Exception(s"${sink} contains in both instances and memorys")
++      case Seq(true, false) =>
++        val IP = Nodes(sink).portIn(sinkE).head // Only one port is connected at once
++        rIP2E((IP._1, IP._2.head)) = srcE
++      case Seq(false, true) =>
++        val MPF = Nodes(sink).portIn(sinkE).head // Only one port is connected at once
++        val MP = (MPF._1, MPF._2.head)
++        rMP2N(MP) = rMP2N.getOrElse(MP, Map()) + (MPF._2.last -> node.name)
++      case _ => Unit
++    }
++  }
++
++  // N2E
++  private def updateN2E(sink: String, srcE: Expression): Unit = {
++    if (Set("WDefInstance", "DefMemory").contains(Nodes(sink).c))
++      return
++    if (N2E.keySet.contains(sink))
++      return
++
++    N2E(sink) = srcE
++  }
++
++  def getInstanceMap: Map[String, (String, Set[(String, Set[String])])] = {
++    val I2IP = instances.flatMap(i => {
++      visited.clear
++      val (srcs, ips) = findNodeSrcs(Set(i.name))
++      srcs("WDefInstance").map(x =>
++        (x, i.name, ips(x.get[WDefInstance])))
++    })
++
++    instances.map(i => {
++      val sink_srcPs = I2IP.flatMap{ case (srcN, sink, ports) =>
++        if (srcN.get[WDefInstance] == i)
++          Some((sink, ports.filter(_.contains("valid"))))
++        else
++          None
++      }
++      (i.name , (i.module, sink_srcPs))
++    }).toMap
++  }
++
++  def findPortSrcs(ports: Set[String]):
++      (Map[String, Set[Node]], Map[WDefInstance, Set[String]]) = {
++    /* ports should be subset of outward ports of module *
++     * Current design cannot discriminate outward ports and inward ports,
++     * so just select only outward */
++    assert(ports.subsetOf(mPorts.map(_.name)),
++           s"$mName does not have ports: {${ports.diff(mPorts.map(_.name))}}")
++
++    val oPorts = ports.intersect(mPorts.filter(_.direction == Output).map(_.name))
++
++    findNodeSrcs(oPorts)
++  }
++
++  def findExprSrcs(exprs: Set[Expression]):
++      (Map[String, Set[Node]], Map[WDefInstance, Set[String]]) = {
++    val exprNodes = exprs.flatMap(Node.findNames)
++
++    // Select exact (input) ports
++    val inPorts = mPorts.filter(_.direction == Input).map(_.name)
++    val inputs = exprNodes.intersect(inPorts).diff(visited)
++    visited ++= inputs
++
++    // Select memorys (TODO: continue over the ports connected to the memory)
++    val mems = exprNodes.intersect(memorys.map(_.name)).diff(visited)
++    visited ++= mems
++
++    // Select instances (and its port)
++    val insts = exprNodes.intersect(instances.map(_.name)).map(Nodes)
++    val iPorts = insts.map(i =>
++      (i.get[WDefInstance], exprs.filter(i.usedIn(_)).flatMap(i.portIn).map(_._2.head))
++    ).toMap
++
++    val (iNodes, oIPorts, iMems) = findOutPortsConnected(iPorts)
++
++    val nodes = exprNodes.diff(insts.map(_.name) ++ mems) ++ iNodes
++    val (nodeSrcs, instPorts) = findNodeSrcs(nodes)
++
++    val retNodeSrcs = Map(
++      "DefRegister" -> nodeSrcs("DefRegister"),
++      "DefMemory" -> (nodeSrcs("DefMemory") ++ mems.map(Nodes) ++ iMems.map(Nodes)),
++      "WDefInstance" -> (nodeSrcs("WDefInstance") ++ oIPorts.keySet.map(i => Nodes(i.name))),
++      "Port" -> (nodeSrcs("Port") ++ inputs.map(Nodes))
++    )
++    val retInstPorts = (oIPorts.keySet ++ instPorts.keySet).map(key =>
++      (key, oIPorts.getOrElse(key, Set()) ++ instPorts.getOrElse(key, Set()))
++    ).toMap
++
++    (retNodeSrcs, retInstPorts)
++  }
++
++  /*  If instance and port (i.e., (inst, port)) is found,
++      it can be an input port which still needs backward slicing further.
++      We find all Nodes and 'real' output ports which are sources
++  */
++  private def findOutPortsConnected(ips: Map[WDefInstance, Set[String]]):
++      (Set[String], Map[WDefInstance, Set[String]], Set[String]) = {
++    val oIPorts = ips.map{
++      case (wdi, s) => (wdi, s.filter(p => !rIP2E.keySet.contains((wdi.name, p))))
++    }.filter(_._2.nonEmpty)
++
++    val exprs = rIP2E.filterKeys(ips.map{
++      case (wdi, s) => s.map(p => (wdi.name, p))
++    }.flatten.toSet.contains).values.toSet
++    val exprNodes = exprs.flatMap(Node.findNames)
++
++    val insts = exprNodes.intersect(instances.map(_.name))
++    val mems = exprNodes.intersect(memorys.map(_.name))
++    val nodes = exprNodes.diff(insts ++ mems)
++
++    val iPorts = insts.map(i => {
++      val n = Nodes(i)
++      (n.get[WDefInstance], exprs.filter(n.usedIn(_)).flatMap(n.portIn).map(_._2.head))
++    }).toMap.filter(_._2.nonEmpty)
++
++    if (iPorts.isEmpty) {
++      (nodes, oIPorts, mems)
++    } else {
++      val cont = findOutPortsConnected(iPorts)
++      val retOIPorts = (oIPorts.keySet ++ cont._2.keySet).map(key =>
++        (key, oIPorts.getOrElse(key, Set()) ++ cont._2.getOrElse(key, Set()))
++      ).toMap
++      (nodes ++ cont._1, retOIPorts, mems ++ cont._3)
++    }
++  }
++
++  //noinspection ScalaStyle
++  private def findNodeSrcs(nodes: Set[String]):
++      (Map[String, Set[Node]], Map[WDefInstance, Set[String]]) = {
++
++    val nodeSrcs = Map[String, ListBuffer[Node]](
++      "DefRegister" -> ListBuffer[Node](),
++      "DefWire" -> ListBuffer[Node](),
++      "DefNode" -> ListBuffer[Node](),
++      "DefMemory" -> ListBuffer[Node](),
++      "WDefInstance" -> ListBuffer[Node](),
++      "Port" -> ListBuffer[Node]())
++    val instPorts = mutable.Map[WDefInstance, Set[String]]()
++
++
++    val srcs = nodes.flatMap(n => {
++      val fSrcs = R(n)
++      visited.add(n)
++      fSrcs.flatMap(findSrcs(_, n))})
++
++    val allSrcs = srcs.foldLeft(Map[String, Set[String]]())((res, s) => {
++      val seq = res.getOrElse(s._1, Set[String]())
++      s._2 match {
++        case None => res + (s._1 -> seq)
++        case Some(str) => res + (s._1 -> (seq + str))
++      }}).toSet
++
++    for (src <- allSrcs) {
++      Nodes(src._1).c match {
++        case "DefRegister" => nodeSrcs("DefRegister").append(Nodes(src._1))
++        case "DefWire" => nodeSrcs("DefWire").append(Nodes(src._1))
++        case "DefNode" => nodeSrcs("DefNode").append(Nodes(src._1))
++        case "DefMemory" => nodeSrcs("DefMemory").append(Nodes(src._1))
++        case "WDefInstance" => {
++          instPorts(Nodes(src._1).get[WDefInstance]) = src._2
++          nodeSrcs("WDefInstance").append(Nodes(src._1))
++        }
++        case "Port" =>
++          if (Nodes(src._1).get[Port].direction == Input &&
++            !Set("clock", "reset").contains(src._1))
++            nodeSrcs("Port").append(Nodes(src._1))
++        case _ =>
++          throw new Exception(s"${src} not in Node type")
++      }
++    }
++
++    (nodeSrcs.map(tuple => (tuple._1, tuple._2.toSet)), instPorts.toMap)
++  }
++
++  def isStatePreserving(reg: DefRegister): Boolean = {
++    R(reg.name).map(s => Nodes(s).c match {
++      case "DefRegister" => s == reg.name
++      case _ => false
++    }).reduce(_ || _)
++  }
++
++  def findVecRegs(regs: Set[DefRegister]): Map[String, Set[DefRegister]] = {
++
++    val infoRegMap: Map[Info, Seq[DefRegister]]  = {
++      regs.foldLeft(ListBuffer[Info]())((list, reg) => {
++        if (list.contains(reg.info)) list
++        else list :+ reg.info
++      }).map(info => (info, regs.filter(_.info == info).toSeq)).toMap
++    }
++
++    val MINVECSIZE = 2
++    val sInfoRegMap = infoRegMap.map{ case (i, seq) =>
++      (i, seq.sortBy(_.name)) }.filter{ case (i, seq) =>
++      (i.getClass.getSimpleName != "NoInfo" && seq.length >= MINVECSIZE)
++    }
++
++    val retInfoRegs = mutable.Map[String, Set[DefRegister]]()
++    for ((i, seq) <- sInfoRegMap) {
++      val regs = seq.map(_.name)
++      val prefix = regs.foldLeft(regs.head.inits.toSet)((set, reg) => {
++        reg.inits.toSet.intersect(set)
++      }).maxBy(_.length)
++
++      prefix.length match {
++        case 0 => Unit
++        case n => {
++          val bodies = regs.map(x => {x.substring(n, x.length)} )
++
++          if (bodies.forall(b => b.length > 0 && b(0).isDigit)) {
++            val hyphenOrEnd =
++              (b: String) => {if (b.contains('_')) b.indexOf('_') else b.length}
++            val idxs = bodies.map(b => b.substring(0, hyphenOrEnd(b)))
++            val vElems = idxs.map(i =>
++              (i.toInt, bodies.collect{
++                 case b if b.substring(0, hyphenOrEnd(b)) == i =>
++                   b.substring(i.length, b.length)
++               })
++            ).toMap
++
++            val idxStream = vElems.keySet.toSeq.sorted.sliding(2)
++            if (idxStream.count(k => k(0) + 1 == k(1)) == vElems.keySet.size - 1 &&
++              vElems.keySet.toSeq.head == 0 &&
++              vElems.forall(_._2.toSet == vElems.head._2.toSet)) {
++              retInfoRegs(prefix) = seq.toSet
++            }
++          }
++        }
++      }
++    }
++
++    retInfoRegs.toMap
++  }
++
++  private def findSrcs(sink: String, prev: String): Seq[(String, Option[String])] = {
++    assert(R.keySet.contains(sink),
++      s"R does not contain $sink")
++
++    if (visited.contains(sink))
++      return Seq()
++
++    val sources = R(sink)
++
++    // WDefInstance does not form a loop & Can be reached multiple times with different ports
++    if (!Set("WDefInstance", "DefMemory").contains(Nodes(sink).c))
++      visited.add(sink)
++
++    sources.foldLeft(Nodes(sink).node match {
++      case winst: WDefInstance =>
++        /* TODO: If inst-port is input, continue over */
++        rN2IP(prev).map(x => (x._1, Option.apply[String](x._2))).toSeq
++      case mem: DefMemory =>
++        /* TODO: When memory (data port) is detected, two fields should be sliced
++            1. the address selection logic
++            2. the writer logic, which modifies the memory value
++        */
++        val cons = rN2MP(prev).flatMap(x =>
++          rMP2N.getOrElse(x, throw new Exception(s"$x not in rMP2N"))
++            .filterKeys(Seq().contains).values.toSet)
++        (rN2MP(prev).map(x => (x._1, Option.apply[String](x._2))) ++
++          cons.flatMap(findSrcs(_, sink))).toSeq
++      case _ => Seq((sink, Option.empty[String])) // Port, DefRegister, DefWire, DefNode
++    }) ((list, str) => Nodes(sink).c match {
++      case "WDefInstance" | "DefMemory" => list
++      case _ => list ++ findSrcs(str, sink) // DefNode, DefWire, Port
++    })
++  }
++
++  def findNodeSinks(n: String): Set[String] = getOuter(findSinks(n).toSet)
++
++  def findMemSinks(mem: DefMemory): (Set[String], Set[String]) = {
++    val readers = mem.readers
++    val addrs = rMP2N.flatMap{ case (k, map) =>
++      if (k._1 == mem.name && readers.contains(k._2))
++        map.mapValues(Some(_)).getOrElse("addr", None)
++      else
++        None
++    }
++    val datas = rN2MP.collect{
++      case (n, mp) if mp.exists(x => x._1 == mem.name && readers.contains(x._2)) => n
++    }
++    val nodes = datas.flatMap(findSinks)
++
++    (addrs.toSet, getOuter(nodes.toSet))
++  }
++
++  private def getOuter(sinks: Set[String]): Set[String] = {
++    val nodes = N2E.filterKeys(sinks.contains).flatMap{
++      case (s, e) => e match {
++        case Mux(c, _, _, _) => Node.findNames(c)
++        case DoPrim(op, args, _, _) if op.serialize == "eq" => args.flatMap(Node.findNames)
++        case _ => Seq()
++      }
++    }.toSet
++
++    nodes -- sinks
++  }
++
++  private def findSinks(source: String): Seq[String] = {
++    assert(expG.keySet.contains(source),
++      s"G does not contain $source")
++
++    if (visited.contains(source))
++      return Seq()
++
++    val sinks = expG(source)
++
++    visited.add(source)
++
++    sinks.foldLeft(Seq(source))((list, str) =>
++      Nodes(str).c match {
++        case "WDefInstance" | "DefMemory" => list
++        case _ => list ++ findSinks(str)
++      }
++    )
++  }
++
++  def filterOut(nodes: Set[FirrtlNode]): Set[String] = {
++    val outNames = nodes.map(n => n match {
++      case reg: DefRegister => reg.name
++      case mem: DefMemory => mem.name
++      case _ => throw new Exception(s"${n.serialize} is not reg/mem")
++    })
++
++    Nodes.filter{
++      case (s, n) => Seq("DefRegister", "DefMemory").contains(n.c)
++    }.keySet.diff(outNames).toSet
++  }
++
++  /******************** Print functions ******************************************/
++  def printLog: Unit = {
++    println(s"====================$mName=========================")
++
++    println("---------R---------")
++    R.foreach(tup => println(s"[${tup._1}] -- {${tup._2.mkString(", ")}}"))
++    println("")
++
++    println("---------rN2IP---------")
++    rN2IP.foreach(tup => println(s"[${tup._1}] -- {${tup._2.map(x => s"(${x._1}, ${x._2})").mkString(", ")}}"))
++    println("")
++
++    println("---------rIP2E---------")
++    rIP2E.foreach(tup => println(s"${tup._1} -- {${tup._2.serialize}}"))
++    println("")
++
++    println("---------rN2MP---------")
++    rN2MP.foreach(tup => println(s"[${tup._1}] -- {${tup._2.map(x => s"(${x._1}, ${x._2})").mkString(", ")}}"))
++    println("")
++
++    println("---------rMP2N---------")
++    rMP2N.foreach{ case (k, v) => println(s"[(${k._1}, ${k._2})] -- {${v.mkString(", ")}}")}
++    println("")
++  }
++
++  def getStat: (Int, Int) = {
++    val reg = Nodes.count{ case (_, n) => n.c == "DefRegister" }
++    val mem = Nodes.count{ case (_, n) => n.c == "DefMemory" }
++
++    (reg, mem)
++  }
++}
++
+diff --git a/src/main/scala/specdoctor/moduleInfo.scala b/src/main/scala/specdoctor/moduleInfo.scala
+new file mode 100644
+index 00000000..ebad2385
+--- /dev/null
++++ b/src/main/scala/specdoctor/moduleInfo.scala
+@@ -0,0 +1,196 @@
++// Copyright (C) 2011-2012 the original author or authors.
++// See the LICENCE.txt file distributed with this work for additional
++// information regarding copyright ownership.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++// TODO: Fill in
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package specdoctor
++
++import firrtl._
++import firrtl.ir._
++
++import scala.collection.mutable.ListBuffer
++import scala.collection.Map
++import scala.reflect.ClassTag
++
++/* Saving module information */
++object moduleInfo {
++  def apply(gLedger: graphLedger): moduleInfo = {
++    new moduleInfo(gLedger.mName, gLedger)
++  }
++
++  def findModules(gLedgers: Map[String, graphLedger], top: String, module: String): Int = {
++    if (top == module) 1
++    else {
++      gLedgers(top).getNodes[WDefInstance].foldLeft(0)(
++        (num, inst) => num + findModules(gLedgers, inst.module, module)
++      )
++    }
++  }
++}
++
++class moduleInfo(val mName: String,
++                 val gLedger: graphLedger) {
++
++  var vPortSrcs = Map[String, Set[Node]]()
++  var fInstPorts = Map[WDefInstance, Set[String]]()
++
++  def getSrcNode[T <: FirrtlNode : ClassTag]: Set[T] = {
++    vPortSrcs.getOrElse(
++      implicitly[ClassTag[T]].toString.split("\\.").last, Set()
++    ).map(_.node.asInstanceOf[T])
++  }
++  def getAllNodes: Set[String] = vPortSrcs.filterKeys(
++    Set("DefNode", "DefWire", "DefRegister"
++  ).contains(_)).values.flatten.map(_.name).toSet
++
++  def getMemory: Set[(String, DefMemory)] = Stream.continually(mName).zip(getSrcNode[DefMemory]).toSet
++  def getRegister: Set[(String, DefRegister)] = Stream.continually(mName).zip(getSrcNode[DefRegister]).toSet
++
++  def getNumNodes: Int = getSrcNode[Port].size + fInstPorts.values.flatten.size
++
++  def phase0(ports: Set[String]): Unit = {
++    val (ret0, ret1) = gLedger.findPortSrcs(ports)
++    vPortSrcs = ret0
++    fInstPorts = ret1
++  }
++
++  def phase1(exprs: Set[Expression]): Unit = {
++    val (ret0, ret1) = gLedger.findExprSrcs(exprs)
++    vPortSrcs = ret0
++    fInstPorts = ret1
++  }
++
++  def getPorts(mInfos: Map[String, moduleInfo]): ListBuffer[String] = {
++    val parents = mInfos.values.filter(_.getSrcNode[WDefInstance].map(_.module).contains(mName))
++
++    parents.flatMap(
++      _.fInstPorts.filterKeys(_.module == mName).values.flatten
++    ).to[ListBuffer]
++  }
++
++  def getInstCons(mInfos: Map[String, moduleInfo]): Set[Expression] = {
++    val instModules = gLedger.getNodes[WDefInstance].map(wdi => (wdi.name, wdi.module)).toMap
++    val instMInfos = instModules.map{ case (k, v) => (k, mInfos(v)) }
++
++    val instPorts = instMInfos.toSeq.flatMap {
++      case (inst, mInfo) => Stream.continually(inst).zip(mInfo.getSrcNode[Port].map(_.name))
++    }.toSet
++
++    gLedger.IP2E.filterKeys(instPorts.contains).values.toSet
++  }
++
++  def printInfo: Unit = {
++    println(s"------------[${mName}]------------")
++    vPortSrcs.foreach(tup => println(s"${tup._1}: {${tup._2.map(_.name).mkString(", ")}}"))
++    println("")
++    fInstPorts.foreach(tup => println(s"[${tup._1.name}] -- {${tup._2.mkString(", ")}}"))
++    println("-----------------------------------")
++  }
++}
++
++
++/* Module instantiation network */
++object moduleNet {
++  def apply(gLedgers: Map[String, graphLedger], topModuleName: String): moduleNet = {
++    val nodeInsts = gLedgers.toSeq.map(tup => (netNode(tup._1, Seq(), Seq()), tup._2.getNodes[WDefInstance]))
++
++    for ((node, insts) <- nodeInsts) {
++      node.childs = nodeInsts.map(_._1).filter(x => insts.map(_.module).contains(x.n))
++    }
++
++    for (node <- nodeInsts.map(_._1)) {
++      node.parents = nodeInsts.map(_._1).filter(x => x.childs.exists(_.n == node.n))
++    }
++
++    new moduleNet(nodeInsts.map(_._1))
++  }
++}
++
++class moduleNet(val nodes: Seq[netNode]) {
++  var numNodes = 0
++  var roots = ListBuffer[netNode]()
++  var leaves = ListBuffer[netNode]()
++
++  def reset: Unit = {
++    numNodes = nodes.size
++    nodes.foreach(_.reset)
++
++    roots = nodes.filter(_.parents.isEmpty).to[ListBuffer]
++    leaves = nodes.filter(_.childs.isEmpty).to[ListBuffer]
++  }
++
++  /* Pop topmost module name and re-sort network */
++  def popT: Option[String] = {
++    /* Module hierarchy must not form a loop */
++    assert(numNodes >= 0, "Incorrect moduleNet")
++
++    if (roots.isEmpty) None
++    else {
++      val root = roots.remove(0)
++      numNodes = numNodes - 1
++
++      for (node <- root.childs) {
++        node.parents = node.parents.filterNot(_ == root)
++        if (node.parents.isEmpty) roots.append(node)
++      }
++
++      Some(root.n)
++    }
++  }
++
++  /* Pop bottommost module name and re-sort network */
++  def popB: Option[String] = {
++    /* Module hierarchy must not form a loop */
++    assert(numNodes >= 0, "Incorrect moduleNet")
++
++    if (leaves.isEmpty) None
++    else {
++      val leaf = leaves.remove(0)
++      numNodes = numNodes - 1
++
++      for (node <- leaf.parents) {
++        node.childs = node.childs.filterNot(_ == leaf)
++        if (node.childs.isEmpty) leaves.append(node)
++      }
++
++      Some(leaf.n)
++    }
++  }
++
++  /*******************Print Function*****************8**/
++  def printNet(dir: Boolean=true): Unit = {
++    reset
++
++    val pop = () => if (dir) popT else popB
++    var done = false
++    while (!done) {
++      pop() match {
++        case Some(nName) => println(s"$nName")
++        case None => done = true
++      }
++    }
++  }
++}
++
++case class netNode(n: String, var parents: Seq[netNode], var childs: Seq[netNode]) {
++  private lazy val immParents = parents
++  private lazy val immChilds = childs
++
++  def reset: Unit = {
++    parents = immParents
++    childs = immChilds
++  }
++}
++
++
+diff --git a/src/main/scala/specdoctor/spdocInstr.scala b/src/main/scala/specdoctor/spdocInstr.scala
+new file mode 100644
+index 00000000..d1bdda33
+--- /dev/null
++++ b/src/main/scala/specdoctor/spdocInstr.scala
+@@ -0,0 +1,281 @@
++// Copyright (C) 2011-2012 the original author or authors.
++// See the LICENCE.txt file distributed with this work for additional
++// information regarding copyright ownership.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++// TODO: Fill in
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package specdoctor
++
++import firrtl._
++import firrtl.ir._
++import firrtl.Mappers._
++
++import java.io.{File, PrintWriter}
++import org.json4s._
++import org.json4s.native.Serialization
++import org.json4s.native.Serialization.writePretty
++import scala.collection.mutable
++
++/*
++Detect and instrument u-arch side channel attackable RTL components
++Work flow:
++  1) Find all module hierarchy by doing light-weight static analysis
++  2) Find all 'valid-signal' related components in toplevel RTL module
++  3) Recursively find all related components across the module boundary
++*/
++class SpdocInstr extends Transform {
++
++  def inputForm: LowForm.type = LowForm
++  def outputForm: LowForm.type = LowForm
++
++  def printd(str: String, d: Boolean): Unit = if (d) println(str)
++
++  def execute(state: CircuitState): CircuitState = {
++    val circuit = state.circuit
++    val modules = circuit.modules.map(_.name)
++
++    if (sys.env.contains("NOSPDOC")) {
++      return state
++    }
++    /* Parse compile options (debug, topModule) */
++    val debug = sys.env.get("DEBUG") match { case Some(x) if x == "1" => true; case _ => false }
++    val topModuleName = sys.env.get("TOPMODULE") match {
++      case Some(m) => m
++      case None =>
++        println(s"Set TOPMODULE=[${circuit.main}]")
++        circuit.main
++    }
++    val topModule = modules.find(_ == topModuleName).getOrElse(
++      throw new Exception(s"${topModuleName} does not exist")
++    )
++
++    println("* Finding Attackable Memories ...")
++    val gLedgers = circuit.modules.map(m => (m.name, new graphLedger(m))).toMap
++    gLedgers.foreach(_._2.parse)
++    val mInfos = gLedgers.map(tup => (tup._1, moduleInfo(tup._2)))
++
++    printd("** Building 1-level Instance Map ...", debug)
++    val fInsts = Set("frontend", "core", "ptw", "lsu", "dcache")
++    val instMap = gLedgers(topModuleName).getInstanceMap.filterKeys(fInsts.contains)
++
++    ////////////////////////////////////////////////////////////////////////////////
++    //           Finding Attackable Components                                    //
++    ////////////////////////////////////////////////////////////////////////////////
++
++    val atkMems = mutable.Set[(String, DefMemory)]()
++    val atkRegs = mutable.Set[(String, DefRegister)]()
++    for ((_, v) <- instMap) {
++      val module = v._1
++      // val module = "BoomNonBlockingDCache"
++      val ledgers = gLedgers.filterKeys(moduleInfo.findModules(gLedgers, module, _) > 0)
++
++      val mNet = moduleNet(ledgers, module)
++
++      var done = false
++      var iter = 0
++
++      val topPorts = v._2.flatMap(x => if(fInsts.contains(x._1)) x._2 else Set[String]())
++      // val topPorts = Set("io_lsu_resp_0_valid", "io_lsu_nack_0_valid", "io_lsu_release_valid")
++      while (!done && iter < 10) {
++        if (iter == 0)
++          phase0(mNet, mInfos, module, topPorts)
++        else phase0(mNet, mInfos, module)
++
++        atkMems ++= mInfos.values.map(_.getMemory).reduce(_ ++ _)
++        atkRegs ++= mInfos.values.map(_.getRegister).reduce(_ ++ _)
++
++        phase1(mNet, mInfos)
++
++        atkMems ++= mInfos.values.map(_.getMemory).reduce(_ ++ _)
++        atkRegs ++= mInfos.values.map(_.getRegister).reduce(_ ++ _)
++
++        iter += 1
++        done = (mInfos.values.map(_.getNumNodes).sum == 0)
++      }
++
++    }
++
++    println("*** Detection Result ...")
++
++    // println("[Non-attackable components]")
++    // gLedgers.foreach{ case (mod, g) =>
++    //   val atks = mutable.Set[FirrtlNode]()
++    //   atks ++= atkMems.collect { case (m, mem) if m == mod => mem }
++    //   atks ++= atkRegs.collect { case (m, reg) if m == mod => reg }
++    //   println(s"${mod}: ${g.filterOut(atks.toSet).mkString(", ")}")
++    // }
++
++    atkMems --= atkMems.filter{ case (n, mem) => mem.depth <= 1 }
++
++    println("* [Memory] *")
++    val atkMemMap = gLedgers.map{ case (mod, g) =>
++      mod -> atkMems.collect{ case (m, mem) if m == mod => mem }.toSet
++    }.filter(_._2.size > 0)
++
++    atkMemMap.foreach(x =>
++        println(s"${x._1}: ${x._2.map(_.name).mkString(", ")}")
++    )
++
++    println("\n* [Register] *")
++    val atkRegMap = gLedgers.map{ case (mod, g) =>
++      val allRegs = atkRegs.collect{
++        case (m, r) if m == mod && g.isStatePreserving(r) => r
++      }.toSet
++      val vecRegs = g.findVecRegs(allRegs)
++      val scalaRegs = (allRegs.diff(vecRegs.flatMap(_._2).toSet)) match {
++        case regs: Set[DefRegister] if regs.size == 0 => Map[String, Set[DefRegister]]()
++        case regs => Map("remaining_" -> regs)
++      }
++      mod -> (vecRegs ++ scalaRegs)
++    }.filter(_._2.size > 0)
++
++    atkRegMap.foreach{case (m, map) =>
++      val regs = map.keySet.map(r => r.substring(0, r.length - 1))
++      println(s"$m: ${regs.mkString(", ")}")
++    }
++
++    ////////////////////////////////////////////////////////////////////////////////
++    //           Instrumenting Attackable Components                              //
++    ////////////////////////////////////////////////////////////////////////////////
++
++    /* Find modules b/w TopModule and atkMem */
++    val parentMs = modules.filter(m =>
++      atkMems.map(a => moduleInfo.findModules(gLedgers, m, a._1)).sum > 0 ||
++        atkRegMap.collect{
++          case (k, v) if v.size > 0 => k
++        }.map(moduleInfo.findModules(gLedgers, m, _)).sum > 0
++    )
++
++    val intmMs = (parentMs.filter(
++      moduleInfo.findModules(gLedgers, _, topModuleName) == 0
++    ) :+ topModuleName).toSet
++
++    val stChecker = new StateChecker("DigitalTop", topModuleName, intmMs)
++    val instrCircuit = circuit map {
++      m: DefModule => {
++        val mems = atkMemMap.getOrElse(m.name, Set())
++        val regs = atkRegMap.getOrElse(m.name, Map())
++        stChecker.instrument(m, mems, regs)
++      }
++    }
++
++    ////////////////////////////////////////////////////////////////////////////////
++    //           Print Instrumentation Details                                    //
++    ////////////////////////////////////////////////////////////////////////////////
++
++    if (debug) gLedgers.values.foreach(_.printLog)
++    if (debug) mInfos.values.foreach(_.printInfo)
++
++    if (debug) {
++      val rm = gLedgers.foldLeft((0, 0))((rm, g) =>
++        (rm._1 + g._2.getStat._1, rm._2 + g._2.getStat._2)
++      )
++      val atk_rm = (atkRegs.size, atkMems.size)
++      val atk_rm_opt = (atkRegMap.map{ case (m, rs) => (m, rs.values.flatten) }.values.flatten.size, atkMems.size)
++
++      println("=============Instrumentation Statistics==============")
++      println(s"Num. reg: ${rm._1}, ${atk_rm._1}, ${atk_rm_opt._1}")
++      println(s"Num. mem: ${rm._2}, ${atk_rm._2}, ${atk_rm_opt._2}")
++    }
++
++    /* Log static analysis result */
++    val basePath = "specdoctor-logs"
++    val logPath = s"${basePath}/${circuit.main}"
++
++    val dir = new File(basePath)
++    val res_dir = new File(logPath)
++
++    dir.mkdir()
++    res_dir.mkdir()
++
++    implicit val formats = Serialization.formats(NoTypeHints)
++
++    var logger: PrintWriter = null
++
++    logger = new PrintWriter(new File(s"${logPath}/${circuit.main}.mems.json"))
++    logger.write(writePretty(atkMemMap.map{ case (m, set) => (m, set.map(_.name)) }))
++    logger.close()
++
++    logger = new PrintWriter(new File(s"${logPath}/${circuit.main}.regs.vector.json"))
++    logger.write(writePretty(atkRegMap.map { case (m, map) =>
++      (m, map.keySet.filter(!_.contains("remaining")
++      ).map(r => r.substring(0, r.length - 1)))
++    }.filter(_._2.nonEmpty)))
++    logger.close()
++
++    logger = new PrintWriter(new File(s"${logPath}/${circuit.main}.regs.scala.json"))
++    logger.write(writePretty(atkRegMap.map{ case (m, map) =>
++      (m, map.getOrElse("remaining_", Set[DefRegister]()).map(_.name))
++    }.filter(_._2.nonEmpty)))
++    logger.close()
++
++    logger = new PrintWriter(new File(s"${logPath}/${circuit.main}.valids.json"))
++    logger.write(writePretty(instMap.map{ case (_, s) =>
++      (s._1, s._2.flatMap(_._2))}))
++    logger.close()
++
++    state.copy(instrCircuit)
++  }
++
++  /* Phase 0
++  Topdown backward slicing
++  1. Sort modules following the module hierarchy
++  2. Backward slicing starting from the topmost module's valid ports
++  */
++  def phase0(mNet: moduleNet, mInfos: Map[String, moduleInfo],
++             topModuleName: String, topPorts: Set[String] = Set()): Unit = {
++
++    mNet.reset
++
++    val fPorts = mInfos.map{case (k, v) => (k, v.getPorts(mInfos))}
++    fPorts(topModuleName).appendAll(topPorts)
++
++    var done = false
++    while (!done) {
++      mNet.popT match {
++        case Some(nName) =>
++          mInfos(nName).phase0(fPorts(nName).toSet)
++          mInfos(nName).getSrcNode[WDefInstance].foreach(
++            inst => fPorts(inst.module).appendAll(mInfos(nName).fInstPorts(inst))
++          )
++        case None => done = true
++      }
++    }
++  }
++
++  /*  Phase 1
++  Bottomup backward slicing
++  After 'phase 0', input ports of each module (which are source of the valid signals) are identified.
++  For them, backward slicing should be performed in reverse direction
++  1. For each module, union the identified (wired into the valid signals) nodes
++  2. Sort modules following the reversed module hierarchy
++  3. Backward slicing from the bottommost module
++  */
++  def phase1(mNet: moduleNet, mInfos: Map[String, moduleInfo]): Unit = {
++
++    mNet.reset
++
++    val bCons = mInfos.map{case (k, v) => (k, v.getInstCons(mInfos))}
++
++    var done = false
++    while (!done) {
++      mNet.popB match {
++        case Some(nName) =>
++          val exprs = mInfos(nName).getInstCons(mInfos)
++          mInfos(nName).phase1(bCons(nName) ++ exprs)
++        case None => done = true
++      }
++    }
++  }
++}
++
+diff --git a/src/main/scala/specdoctor/stateChecker.scala b/src/main/scala/specdoctor/stateChecker.scala
+new file mode 100644
+index 00000000..d8a48f0d
+--- /dev/null
++++ b/src/main/scala/specdoctor/stateChecker.scala
+@@ -0,0 +1,499 @@
++// Copyright (C) 2011-2012 the original author or authors.
++// See the LICENCE.txt file distributed with this work for additional
++// information regarding copyright ownership.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++// TODO: Fill in
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++package specdoctor
++
++import firrtl.PrimOps._
++import firrtl._
++import firrtl.ir._
++import firrtl.Mappers._
++
++import scala.collection.mutable.ListBuffer
++import scala.reflect.ClassTag
++import scala.math._
++import scala.util.Random
++
++class StateChecker(outerName: String, topModuleName: String, modules: Set[String], hashSz: Int = 64) {
++  var mName: String = ""
++  var mID = 0
++  var iID = 0
++
++  var clock: WRef = _
++  var reset: Expression = _
++  var idRef: Expression = _
++
++  def instrument(m: DefModule, atkMems: Set[DefMemory], atkRegs: Map[String, Set[DefRegister]]):
++      DefModule = {
++    mName = m.name
++    iID = 0
++
++    m match {
++      case mod: Module if modules.contains(mName) =>
++        val hasCNR = hasClockAndReset(mod)
++        clock = WRef(hasCNR._1.get)
++
++        val on = Port(NoInfo, "io_spdoc_check", Input, uTp(1))
++        val done = Port(NoInfo, "io_spdoc_done", Output, uTp(1))
++
++        /* on pulse to reset hash, cnt register */
++        val (onDelay, _) = defReg(s"${mName}_spdoc_reset", clock, 1)
++        val onDelayCon = Connect(NoInfo, WRef(onDelay),
++          DoPrim(Not, Seq(WRef(on)), Seq(), uTp(1)))
++
++        reset = DoPrim(And, Seq(WRef(on), WRef(onDelay)), Seq(), uTp(1))
++
++        /* Instrument instantiation specific ID */
++        val (id, myId) = getID(mID)
++        mID += 1
++
++        idRef = WRef(myId)
++
++        val dones = ListBuffer[Statement]()
++
++        /* Connect specdoctor ports */
++        var newMod = mod map conPorts(WRef(on), dones)
++
++        /* Instrument hash logic detected memories and registers */
++        newMod = newMod map instrMem(atkMems, WRef(on), dones)
++        val regCons = instrRegs(atkRegs, reset)
++
++        /* Wire out spdoc_done ports */
++        val (doneWires, doneRef) = connectDone(dones, done)
++
++        val body = newMod.asInstanceOf[Module].body
++        Module(mod.info, mName,
++          mod.ports ++ id :+ on :+ done,
++          Block(Seq(body, onDelay, onDelayCon, myId) ++ regCons ++ dones ++ doneWires))
++
++      /* Connect TopLevel module to the outer module */
++      case outer: Module if mName == outerName =>
++        val on = outer.ports.find(_.name == "spdoc_check").getOrElse(
++          throw new Exception(s"${mName} does not have spdoc_check")
++        )
++        val done = outer.ports.find(_.name == "spdoc_done").getOrElse(
++          throw new Exception(s"${mName} does not have spdoc_done")
++        )
++
++        val topInsts = ListBuffer[WDefInstance]()
++        outer foreachStmt findTopInst(topInsts)
++        val topInst = topInsts.length match {
++          case 1 => topInsts.head
++          case 0 => throw new Exception(s"${mName} do not have ${topModuleName}")
++          case _ => throw new Exception(s"${mName} have multiple ${topModuleName}")
++        }
++
++        val newMod = outer map connectSpdoc(on, done, topInst)
++        Module(outer.info, mName, outer.ports,
++          Block(Seq(newMod.asInstanceOf[Module].body)))
++
++      case other => other
++    }
++  }
++
++  private def connectDone(dones: Seq[Statement], done: Port): (Seq[Statement], WRef) = {
++    var i = 0
++    val doneAnds = dones.foldLeft(
++      Seq(DefNode(NoInfo, s"${mName}_done_and${i}", uLit(1, 1)))
++    )((n, d) => {
++      i += 1
++      val ref = d match {
++        case w: DefWire => WRef(w)
++        case n: DefNode => WRef(n)
++        case _ => throw new Exception(s"${d} is not DefWire/DefNode")
++      }
++      n :+ DefNode(NoInfo, s"${mName}_done_and${i}",
++        DoPrim(And, Seq(WRef(n.last), ref), Seq(), uTp(1)))
++    })
++
++    val doneCon = Connect(NoInfo, WRef(done), WRef(doneAnds.last))
++
++    (doneAnds :+ doneCon, WRef(doneAnds.last))
++  }
++
++  private def getID(moduleID: Int): (Seq[Port], DefNode) = {
++    val id = mName match {
++      case `topModuleName` => None
++      case _ => Some(Port(NoInfo, "io_mid", Input, uTp(8)))
++    }
++
++    val myId = DefNode(NoInfo, s"${mName}_mid", id.map(i =>
++    DoPrim(Add, Seq(WRef(i), uLit(moduleID, 8)), Seq(), uTp(8))
++    ).getOrElse(uLit(moduleID, 8)))
++
++    (id.map(Seq(_)).getOrElse(Nil), myId)
++  }
++
++  /***************** Port connections *****************/
++
++  private def conPorts(on: Expression, dones: ListBuffer[Statement])
++                      (stmt: Statement): Statement = {
++    stmt match {
++      case inst: WDefInstance if modules.contains(inst.module) =>
++        iID += 1
++        dones.append(DefNode(NoInfo, s"${inst.name}_done", WSubField(WRef(inst), "io_spdoc_done", uTp(1))))
++        Block(Seq(inst,
++          Connect(NoInfo, WSubField(WRef(inst), "io_mid"), DoPrim(Xor, Seq(idRef, uLit(iID, 8)), Seq(), uTp(8))),
++          Connect(NoInfo, WSubField(WRef(inst), "io_spdoc_check"), on),
++        ))
++      case o => o map conPorts(on, dones)
++    }
++  }
++
++  /***************** Attackable memories instrumentation *****************/
++
++  private def instrMem(atkMems: Set[DefMemory], on: Expression, dones: ListBuffer[Statement])
++              (stmt: Statement): Statement = {
++
++    stmt match {
++      case mem: DefMemory if atkMems.contains(mem) =>
++        val done = DefWire(NoInfo, s"${mem.name}_done", uTp(1))
++        dones.append(done)
++        Block(hashMem(mem, on, WRef(done)))
++      case o => o map instrMem(atkMems, on, dones)
++    }
++  }
++
++  private def hashMem(mem: DefMemory, on: Expression, done: Expression):
++      Seq[Statement] = {
++    mem.dataType match {
++      case UIntType(IntWidth(w)) =>
++        val d = mem.depth
++        val dBits = (log(d.toInt + 1)/log(2)).ceil.toInt
++
++        val newMem = mem.copy(readers = mem.readers :+ "spdoc")
++        val (hashReg, hashRegRst) = defReg(s"${mem.name}_hash", clock, hashSz, Some(reset))
++        val (cntReg, cntRegRst) = defReg(s"${mem.name}_cnt", clock, dBits, Some(reset))
++
++        val (memConStmts, dataRef) = memCon(newMem, WRef(cntReg), uLit(1, 1), w)
++
++        val (cLogic, cntOn, cntMux) = counterLogic(WRef(cntReg), on, d, dBits)
++        val (hLogic, hashMux) = hashLogic(WRef(hashReg), dataRef, cntOn)
++
++        /* Embed reset logic */
++        val cntCon = cntRegRst.get(cntMux)
++        val hashCon = hashRegRst.get(hashMux)
++
++        val (doneStmts, doneReg, doneSig) = donePulse(WRef(cntReg), d)
++
++        Seq(newMem, hashReg, cntReg) ++ /* newMem & registers for hashing */
++          memConStmts ++ /* Memory port connections & data trimmed to hashSz */
++          cLogic ++ hLogic ++ Seq(cntCon, hashCon) ++ /* Connecting hashReg */
++          doneStmts :+ /* For printing hash value */
++          Connect(NoInfo, done, doneReg) :+ /* Wire out done signal */
++          Print(NoInfo, StringLit(s"[${mName}(%d)](${mem.name})=[%h]\n"), Seq(idRef, WRef(hashReg)), clock, doneSig)
++      case _ =>
++        throw new Exception(s"${mem.name} has type: ${mem.dataType}")
++    }
++  }
++
++  /* Connect memory ports and return data field trimmed to the hashSz */
++  private def memCon(mem: DefMemory, addr: Expression, en: Expression, w: BigInt):
++      (Seq[Statement], WRef) = {
++    val memReadSF = WSubField(WRef(mem), "spdoc")
++
++    val addrW = (log(mem.depth.toInt)/log(2)).ceil.toInt
++    val readAddr = Connect(NoInfo, WSubField(memReadSF, "addr"),
++      DoPrim(Bits, Seq(addr), Seq(addrW - 1, 0), uTp(addrW)))
++    val readEn = Connect(NoInfo, WSubField(memReadSF, "en"), en)
++    val readClk = Connect(NoInfo, WSubField(memReadSF, "clk"), clock)
++
++    val name = memReadSF.expr.serialize
++
++    val dataNode = DefNode(NoInfo, s"${name}_node", WSubField(memReadSF, "data"))
++    val cutNodes = (0 until w.toInt by hashSz).map(
++      i => (i/hashSz,
++        if (w.toInt > i + hashSz)
++          DoPrim(Bits, Seq(WRef(dataNode)), Seq(i + hashSz - 1, i), uTp(hashSz))
++        else
++          DoPrim(Pad, Seq(DoPrim(Bits, Seq(WRef(dataNode)), Seq(w.toInt - 1, i), uTp(w.toInt - i))),
++            Seq(hashSz), uTp(hashSz))
++      )
++    ).map{ case (i, e) => DefNode(NoInfo, s"${name}_cut${i}", e) }
++
++    val mergeNodes = cutNodes.size match {
++      case 1 =>
++        Seq(DefNode(NoInfo, s"${name}_merge0", WRef(cutNodes.head)))
++      case _ =>
++        cutNodes.zipWithIndex.foldLeft(
++          Seq(DefNode(NoInfo, s"${name}_merge0", uLit(0, hashSz)))
++        )((s, n) => s :+ DefNode(NoInfo, s"${name}_merge${n._2 + 1}",
++          DoPrim(Xor, Seq(WRef(s.last), WRef(n._1)), Seq(), uTp(hashSz))
++        ))
++    }
++
++    (Seq(readAddr, readEn, readClk, dataNode) ++ cutNodes ++ mergeNodes, WRef(mergeNodes.last))
++  }
++
++  /* Address selection logic
++  When io_spdoc_check & (cntReg < d), increment counter register
++  */
++  private def counterLogic(cntReg: WRef, on: Expression, d: BigInt, dBits: Int):
++      (Seq[Statement], WRef, Mux) = {
++
++    val cntIng = DefNode(NoInfo, s"${cntReg.serialize}_not_done",
++      DoPrim(Neq, Seq(cntReg, uLit(d)), Seq(), uTp(1)))
++    val cntOn = DefNode(NoInfo, s"${cntReg.serialize}_on",
++      DoPrim(And, Seq(on, WRef(cntIng)), Seq(), uTp(1)))
++    val cntMux = Mux(WRef(cntOn),
++      DoPrim(Add, Seq(cntReg, uLit(1, dBits)), Seq(), uTp(dBits)),
++      cntReg)
++
++    (Seq(cntIng, cntOn), WRef(cntOn), cntMux)
++  }
++
++  /* Hash logic
++  While increasing counter register, hash the corresponding memory line into the hash register.
++  To increase entropy, shift left the input value each time.
++  */
++  private def hashLogic(hashReg: WRef, dataRef: WRef, cntOn: WRef):
++      (Seq[Statement], Mux) = {
++
++    val unit = Random.nextInt(hashSz - 2) + 1
++
++    val shlNode = DefNode(NoInfo, s"${hashReg.serialize}_shl",
++      DoPrim(Shl, Seq(
++        DoPrim(Bits, Seq(hashReg), Seq(hashSz - unit - 1, 0), uTp(hashSz - unit))
++      ), Seq(unit), uTp(hashSz)))
++    val shrNode = DefNode(NoInfo, s"${hashReg.serialize}_shr",
++      DoPrim(Cat, Seq(uLit(0, hashSz - unit),
++        DoPrim(Shr, Seq(hashReg), Seq(hashSz - unit), uTp(hashSz - unit))
++      ), Seq(), uTp(hashSz)))
++    val shNode = DefNode(NoInfo, s"${hashReg.serialize}_sh",
++      DoPrim(Xor, Seq(WRef(shlNode), WRef(shrNode)), Seq(), uTp(hashSz)))
++
++    val hashMux = Mux(cntOn,
++      DoPrim(Xor, Seq(WRef(shNode), dataRef), Seq(), uTp(hashSz)),
++      hashReg)
++
++    (Seq(shlNode, shrNode, shNode), hashMux)
++  }
++
++  private def donePulse(cntReg: WRef, d: BigInt): (Seq[Statement], Expression, Expression) = {
++    val done = DefNode(NoInfo, s"${cntReg.serialize}_done",
++      DoPrim(Eq, Seq(cntReg, uLit(d)), Seq(), uTp(1)))
++    val (done_d, _) = defReg(s"${done.name}_d", clock, 1)
++    val doneCon = Connect(NoInfo, WRef(done_d), WRef(done))
++
++    (Seq(done, done_d, doneCon),
++      WRef(done_d),
++      DoPrim(Xor, Seq(WRef(done), WRef(done_d)), Seq(), uTp(1)))
++  }
++
++  /***************** Attackable registers instrumentation *****************/
++
++  private def instrRegs(atkRegs: Map[String, Set[DefRegister]], on: Expression):
++      Seq[Statement] = {
++
++    val sAtkRegs = atkRegs.filter{ case (pfx, s) =>
++      if (s.exists(r => width(r) > hashSz))
++        println(s"[$mName] ${pfx}(${s.map(_.name).mkString(", ")}) contains too large register")
++      s.forall(r => width(r) <= hashSz)
++    }
++
++    // assert(atkRegs.flatMap(_._2).forall(r => width(r) <= hashSz),
++    //        s"${atkRegs.flatMap(_._2.filter(r => width(r) > hashSz).map(_.name)).mkString(", ")} has width > ${hashSz}")
++
++    val padRes = sAtkRegs.map{
++      case (pfx, regs) =>
++        val regOffs = getOffset[DefRegister](regs.toSeq, hashSz)
++        (pfx -> makeShift[DefRegister](regOffs, hashSz))
++    }
++
++    val padRefs = padRes.mapValues(_._1)
++    val padStmts = padRes.values.flatMap(_._2)
++
++    val xorRes = padRefs.map{case (pfx, regs) =>
++      (pfx -> makeXor(pfx, regs, 0, hashSz))
++    }
++
++    val xorStmts = xorRes.values.flatMap(_._2)
++    val topXors = xorRes.mapValues(_._1)
++
++    // TODO: Print logic when on signal is asserted
++    val prints = topXors.map{case (pfx, xor) =>
++      Print(NoInfo, StringLit(s"[${mName}(%d)](${pfx.substring(0, pfx.length - 1)})=[%h]\n"),
++      Seq(idRef, xor), clock, on)
++    }
++
++    (padStmts ++ xorStmts ++ prints).toSeq
++  }
++
++  private def getOffset[T <: FirrtlNode : ClassTag](stmts: Seq[T], size: Int):
++      Seq[(T, Int)] = {
++
++    val widthSeq = stmts.map(s => width(s))
++    val totBitWidth = widthSeq.sum
++    val zipWidth = stmts zip widthSeq
++
++    totBitWidth match {
++      case 0 => Seq[(T, Int)]()
++      case x if x <= size => {
++        var sum_offset = 0
++        zipWidth.map(tuple => {
++          val offset = sum_offset
++          sum_offset = sum_offset + tuple._2
++          (tuple._1, offset)
++        }).toSeq
++      }
++      case x => {
++        val rand = Random
++        zipWidth.map { case (x, i) =>
++          (x, rand.nextInt(size - i + 1))
++        }
++      }
++    }
++  }
++
++  private def makeShift[T <: FirrtlNode : ClassTag](stOffs: Seq[(T, Int)], size: Int):
++      (Seq[WRef], Seq[Statement]) = {
++
++    val stmts = stOffs.map{ case (s, o) =>
++      val w = width(s)
++      val p = size - w - o
++
++      val shl = DefNode(NoInfo, s"${name(s)}_shl",
++        DoPrim(Shl, Seq(wref(s)), Seq(o), uTp(w + o)))
++      val padVal = p match {
++        case 0 => WRef(shl)
++        case _ => DoPrim(Cat, Seq(uLit(0, p), WRef(shl)), Seq(), uTp(size))
++      }
++      val pad = DefNode(NoInfo, s"${name(s)}_pad", padVal)
++
++      Seq(shl, pad)
++    }
++
++    (stmts.map(s => WRef(s.last)), stmts.flatten)
++  }
++
++  private def makeXor(name: String, refs: Seq[WRef], i: Int, size: Int):
++      (WRef, Seq[Statement]) = {
++    refs.size match {
++      case 1 => (refs.head, Seq[Statement]())
++      case 2 => {
++        val xor_wire = DefWire(NoInfo, name + s"_xor${i}", uTp(size))
++        val xor_op = DoPrim(Xor, refs, Seq(), uTp(size))
++        val xor_con = Connect(NoInfo, WRef(xor_wire), xor_op)
++        (WRef(xor_wire), Seq(xor_wire, xor_con))
++      }
++      case _ => {
++        val (xor1, stmts1) = makeXor(name, refs.splitAt(refs.size / 2)._1, 2 * i + 1, size)
++        val (xor2, stmts2) = makeXor(name, refs.splitAt(refs.size / 2)._2, 2 * i + 2, size)
++        val xor_wire = DefWire(NoInfo, name + s"_xor${i}", uTp(size))
++        val xor_op = DoPrim(Xor, Seq(xor1, xor2), Seq(), uTp(size))
++        val xor_con = Connect(NoInfo, WRef(xor_wire), xor_op)
++        (WRef(xor_wire), stmts1 ++ stmts2 :+ xor_wire :+ xor_con)
++      }
++    }
++  }
++
++  private def hasClockAndReset(mod: Module): (Option[Port], Option[Port], Boolean) = {
++    val ports = mod.ports
++    val (clk, rst) = ports.foldLeft[(Option[Port], Option[Port])]((None, None))(
++      (tuple, p) => {
++        if (p.name == "clock" || p.name == "gated_clock") (Some(p), tuple._2)
++        else if (p.name == "reset") (tuple._1, Some(p))
++        else tuple
++      })
++    val hasCNR = clk.isDefined && rst.isDefined
++
++    (clk, rst, hasCNR)
++  }
++
++  private def findTopInst(insts: ListBuffer[WDefInstance])(stmt: Statement): Unit = {
++    stmt match {
++      case inst: WDefInstance if inst.module == topModuleName =>
++        insts.append(inst)
++      case o => o foreachStmt findTopInst(insts)
++    }
++  }
++
++  private def connectSpdoc(on: Port, done: Port, topInst: WDefInstance)(stmt: Statement): Statement = {
++    stmt match {
++      case c: Connect if c.loc.serialize.contains(done.name) =>
++        Block(Seq(
++          Connect(NoInfo, WSubField(WRef(topInst), "io_spdoc_check"), WRef(on)),
++          Connect(NoInfo, WRef(done), WSubField(WRef(topInst), "io_spdoc_done"))
++        ))
++      case o => o map connectSpdoc(on, done, topInst)
++    }
++  }
++
++  /***************** Syntactic Sugar *****************/
++
++  private def defReg(name: String, clk: Expression, width: Int, rst: Option[Expression] = None,
++                     init: Int = 0): (DefRegister, Option[(Expression) => Statement]) = {
++    val initReg = (name: String, width: Int) =>
++      WRef(name, uTp(width), RegKind, UnknownFlow)
++
++    val reg = DefRegister(NoInfo, name, uTp(width), clk, uLit(0, 1), initReg(name, width))
++    val resetCon = rst.map(
++      r => (v: Expression) =>Connect(NoInfo, WRef(reg), Mux(r, uLit(init, width), v))
++    )
++
++    (reg, resetCon)
++  }
++
++  private def wref(node: FirrtlNode): WRef = {
++    node match {
++      case mem: DefMemory => WRef(mem)
++      case wi: WDefInstance => WRef(wi)
++      case port: Port => WRef(port)
++      case node: DefNode => WRef(node)
++      case reg: DefRegister => WRef(reg)
++      case wire: DefWire => WRef(wire)
++      case _ =>
++        throw new Exception(s"wref not supported on ${node.serialize}")
++    }
++  }
++
++  private def width(node: FirrtlNode): Int = {
++    val tpe = node match {
++      case r: DefRegister => r.tpe
++      case w: DefWire => w.tpe
++      case p: Port => p.tpe
++      case _ =>
++        throw new Exception(s"width not supported on ${node.serialize}")
++    }
++    val width = tpe match {
++      case UIntType(iw) => iw
++      case SIntType(iw) => iw
++      case _ => throw new Exception("${tpe.serialize} doesn't have width")
++    }
++    width match {
++      case IntWidth(len) => len.toInt
++      case _ => throw new Exception("${tpe.serialize} width not IntWidth")
++    }
++  }
++
++  private def name(node: FirrtlNode): String = {
++    node match {
++      case r: DefRegister => r.name
++      case w: DefWire => w.name
++      case p: Port => p.name
++      case _ =>
++        throw new Exception(s"name not supported on ${node.serialize}")
++    }
++  }
++
++
++  private def uTp(w: BigInt): UIntType =
++    UIntType(IntWidth(w))
++
++  private def uLit(v: BigInt, w: BigInt = 0): UIntLiteral =
++    if (w == 0) UIntLiteral(v) else UIntLiteral(v, IntWidth(w))
++
++}
++
+diff --git a/src/test/scala/firrtlTests/ParserSpec.scala b/src/test/scala/firrtlTests/ParserSpec.scala
+index 392be8cf..4c2214b2 100644
+--- a/src/test/scala/firrtlTests/ParserSpec.scala
++++ b/src/test/scala/firrtlTests/ParserSpec.scala
+@@ -3,7 +3,9 @@
+ package firrtlTests
+ 
+ import firrtl._
++import firrtl.ir._
+ import firrtl.testutils._
++import firrtl.testutils.FirrtlCheckers._
+ import org.scalacheck.Gen
+ 
+ class ParserSpec extends FirrtlFlatSpec {
+@@ -24,9 +26,12 @@ class ParserSpec extends FirrtlFlatSpec {
+ 
+   private object RegTests {
+     val prelude = Seq("circuit top :", "  module top :")
+-    val reg = "    reg r : UInt<32>, clock"
++    val regName = "r"
++    val reg = s"    reg $regName : UInt<32>, clock"
+     val reset = "reset => (radReset, UInt(\"hdeadbeef\"))"
+-    val finfo = "@[Reg.scala:33:10]"
++    val sourceLocator = "Reg.scale 33:10"
++    val finfo = "@[$sourceLocator]"
++    val fileInfo = FileInfo(StringLit(sourceLocator))
+   }
+ 
+   private object KeywordTests {
+@@ -79,12 +84,27 @@ class ParserSpec extends FirrtlFlatSpec {
+ 
+   it should "allow source locators with same-line reset" in {
+     import RegTests._
+-    firrtl.Parser.parse((prelude :+ s"${reg} with : (${reset}) $finfo" :+ "    wire a : UInt"))
++    val res = firrtl.Parser.parse((prelude :+ s"${reg} with : (${reset}) $finfo" :+ "    wire a : UInt"))
++    CircuitState(res, Nil) should containTree {
++      case DefRegister(`fileInfo`, `regName`, _,_,_,_) => true
++    }
+   }
+ 
+   it should "allow source locators with multi-line reset" in {
+     import RegTests._
+     firrtl.Parser.parse((prelude :+ s"${reg} with :\n      (${reset}) $finfo"))
++    val res = firrtl.Parser.parse((prelude :+ s"${reg} with :\n      (${reset}) $finfo"))
++    CircuitState(res, Nil) should containTree {
++      case DefRegister(`fileInfo`, `regName`, _,_,_,_) => true
++    }
++  }
++
++  it should "allow source locators with no reset" in {
++    import RegTests._
++    val res = firrtl.Parser.parse((prelude :+ s"${reg} $finfo"))
++    CircuitState(res, Nil) should containTree {
++      case DefRegister(`fileInfo`, `regName`, _,_,_,_) => true
++    }
+   }
+ 
+   // ********** Keywords **********

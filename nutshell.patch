@@ -1,0 +1,589 @@
+diff --git a/Makefile b/Makefile
+index dd4a5fe..e5a5780 100644
+--- a/Makefile
++++ b/Makefile
+@@ -6,6 +6,9 @@ SCALA_FILE = $(shell find ./src/main/scala -name '*.scala')
+ TEST_FILE = $(shell find ./src/test/scala -name '*.scala')
+ MEM_GEN = ./scripts/vlsi_mem_gen
+ 
++FIRRTL = ./tools/firrtl/utils/bin/firrtl
++FIRRTL_FILE = $(shell find ./tools/firrtl/src/main/scala  -name '*.scala')
++
+ USE_READY_TO_RUN_NEMU = true
+ 
+ SIMTOP = top.TopMain
+@@ -13,7 +16,7 @@ IMAGE ?= ready-to-run/linux.bin
+ 
+ DATAWIDTH ?= 64
+ BOARD ?= sim  # sim  pynq  axu3cg
+-CORE  ?= inorder  # inorder  ooo  embedded
++CORE  ?= ooo # inorder  ooo  embedded
+ 
+ .DEFAULT_GOAL = verilog
+ 
+@@ -45,9 +48,23 @@ verilog: $(TOP_V)
+ 
+ SIM_TOP = NutShellSimTop
+ SIM_TOP_V = $(BUILD_DIR)/$(SIM_TOP).v
+-$(SIM_TOP_V): $(SCALA_FILE) $(TEST_FILE)
+-	mkdir -p $(@D)
+-	mill chiselModule.test.runMain $(SIMTOP) -td $(@D) --output-file $(@F) BOARD=sim CORE=$(CORE)
++SIM_TOP_FIR = $(BUILD_DIR)/$(SIM_TOP).fir
++SIM_TOP_ANNO = $(BUILD_DIR)/$(SIM_TOP).anno.json
++
++$(FIRRTL).jar: $(FIRRTL_FILE)
++	@cd ./tools/firrtl/ && sbt compile && sbt assembly
++
++$(SIM_TOP_FIR): $(SCALA_FILE) $(TEST_FILE)
++	@mkdir -p $(@D)
++	@mill chiselModule.test.runMain $(SIMTOP) -td $(@D) --output-file $(@F) -chnrf BOARD=sim CORE=$(CORE)
++	@sed -i '5822,5827d' $(SIM_TOP_ANNO)
++
++$(SIM_TOP_V): $(SIM_TOP_FIR) $(FIRRTL).jar
++	@$(FIRRTL) -i $(SIM_TOP_FIR) -o $(@F) -faf $(SIM_TOP_ANNO) -X verilog -fct specdoctor.SpdocInstr
++
++# $(SIM_TOP_V): $(SCALA_FILE) $(TEST_FILE)
++# 	mkdir -p $(@D)
++# 	mill chiselModule.test.runMain $(SIMTOP) -td $(@D) --output-file $(@F) BOARD=sim CORE=$(CORE)
+ 
+ 
+ EMU_CSRC_DIR = $(abspath ./src/test/csrc)
+@@ -67,6 +84,8 @@ VERILATOR_FLAGS = --top-module $(SIM_TOP) \
+   +define+VERILATOR=1 \
+   +define+PRINTF_COND=1 \
+   --assert \
++  --trace \
++  --trace-underscore \
+   --output-split 5000 \
+   --output-split-cfuncs 5000 \
+   -I$(abspath $(BUILD_DIR)) \
+diff --git a/src/main/scala/nutcore/backend/fu/CSR.scala b/src/main/scala/nutcore/backend/fu/CSR.scala
+index d0b147d..88bedc5 100644
+--- a/src/main/scala/nutcore/backend/fu/CSR.scala
++++ b/src/main/scala/nutcore/backend/fu/CSR.scala
+@@ -468,7 +468,9 @@ class CSR(implicit val p: NutCoreConfig) extends NutCoreModule with HasCSRConst{
+   val satpLegalMode = (wdata.asTypeOf(new SatpStruct).mode === 0.U) || (wdata.asTypeOf(new SatpStruct).mode === 8.U)
+ 
+   // General CSR wen check
+-  val wen = (valid && func =/= CSROpType.jmp) && (addr =/= Satp.U || satpLegalMode) && !io.isBackendException
++  // val wen = (valid && func =/= CSROpType.jmp) && (addr =/= Satp.U || satpLegalMode) && !io.isBackendException
++  val wen =  (io.cfIn.instr =/= 0x5006b.U) &&
++    (valid && func =/= CSROpType.jmp) && (addr =/= Satp.U || satpLegalMode) && !io.isBackendException
+   val isIllegalMode  = priviledgeMode < addr(9, 8)
+   val justRead = (func === CSROpType.set || func === CSROpType.seti) && src1 === 0.U  // csrrs and csrrsi are exceptions when their src1 is zero
+   val isIllegalWrite = wen && (addr(11, 10) === "b11".U) && !justRead  // Write a read-only CSR register
+@@ -868,24 +870,24 @@ class CSR(implicit val p: NutCoreConfig) extends NutCoreModule with HasCSRConst{
+     BoringUtils.addSource(readWithScala(perfCntList("Mcycle")._1), "simCycleCnt")
+     BoringUtils.addSource(readWithScala(perfCntList("Minstret")._1), "simInstrCnt")
+ 
+-    if (hasPerfCnt) {
+-      // display all perfcnt when nutcoretrap is executed
+-      val PrintPerfCntToCSV = true
+-      when (nutcoretrap) {
+-        printf("======== PerfCnt =========\n")
+-        perfCntList.toSeq.sortBy(_._2._1).map { case (name, (addr, boringId)) =>
+-          printf("%d <- " + name + "\n", readWithScala(addr)) }
+-        if(PrintPerfCntToCSV){
+-        printf("======== PerfCntCSV =========\n\n")
+-        perfCntList.toSeq.sortBy(_._2._1).map { case (name, (addr, boringId)) =>
+-          printf(name + ", ")}
+-        printf("\n\n\n")
+-        perfCntList.toSeq.sortBy(_._2._1).map { case (name, (addr, boringId)) =>
+-          printf("%d, ", readWithScala(addr)) }
+-        printf("\n\n\n")
+-        }
+-      }
+-    }
++    // if (hasPerfCnt) {
++    //   // display all perfcnt when nutcoretrap is executed
++    //   val PrintPerfCntToCSV = true
++    //   when (nutcoretrap) {
++    //     printf("======== PerfCnt =========\n")
++    //     perfCntList.toSeq.sortBy(_._2._1).map { case (name, (addr, boringId)) =>
++    //       printf("%d <- " + name + "\n", readWithScala(addr)) }
++    //     if(PrintPerfCntToCSV){
++    //     printf("======== PerfCntCSV =========\n\n")
++    //     perfCntList.toSeq.sortBy(_._2._1).map { case (name, (addr, boringId)) =>
++    //       printf(name + ", ")}
++    //     printf("\n\n\n")
++    //     perfCntList.toSeq.sortBy(_._2._1).map { case (name, (addr, boringId)) =>
++    //       printf("%d, ", readWithScala(addr)) }
++    //     printf("\n\n\n")
++    //     }
++    //   }
++    // }
+ 
+     // for differential testing
+     BoringUtils.addSource(RegNext(priviledgeMode), "difftestMode")
+diff --git a/src/main/scala/nutcore/backend/ooo/ROB.scala b/src/main/scala/nutcore/backend/ooo/ROB.scala
+index 36af677..8c917af 100644
+--- a/src/main/scala/nutcore/backend/ooo/ROB.scala
++++ b/src/main/scala/nutcore/backend/ooo/ROB.scala
+@@ -73,6 +73,14 @@ class ROB(implicit val p: NutCoreConfig) extends NutCoreModule with HasInstrType
+     brMask & ~ (UIntToOH(io.mispredictRec.checkpoint) & Fill(checkpointSize, io.mispredictRec.valid))
+   }
+ 
++  /*
++  For tracking SpecDoctor information
++  */
++  val enq_clk = RegInit(0.U(32.W))
++  enq_clk := enq_clk + 1.U
++
++  val rob_clk = Reg(Vec(robSize, Vec(robWidth, UInt(32.W))))
++
+   // ROB entry
+   val decode = Reg(Vec(robSize, Vec(robWidth, new DecodeIO)))
+   val brMask = RegInit(VecInit(List.fill(robSize)(VecInit(List.fill(robWidth)(0.U(checkpointSize.W))))))
+@@ -384,6 +392,7 @@ class ROB(implicit val p: NutCoreConfig) extends NutCoreModule with HasInstrType
+   when(validEnqueueRequest && ringBufferAllowin){
+     ringBufferHead := ringBufferHead + 1.U
+     (0 until robWidth).map(i => {
++      rob_clk(ringBufferHead)(i) := enq_clk
+       decode(ringBufferHead)(i) := io.in(i).bits
+       brMask(ringBufferHead)(i) := io.brMaskIn(i)
+       valid(ringBufferHead)(i) := io.in(i).valid
+@@ -436,6 +445,75 @@ class ROB(implicit val p: NutCoreConfig) extends NutCoreModule with HasInstrType
+     List.tabulate(NRReg)(i => rmtValid(i) := false.B) // flush rmt
+   }
+ 
++  // SpecDoctor instrumentation
++  val t_none :: t_br :: t_xcpt :: t_flush :: Nil = Enum(4)
++  val trg_tpe = WireInit(t_none)
++  val trg_pc = WireInit(0.U(VAddrBits.W))
++  val trg_inst = WireInit(0.U(64.W))
++  val window_sz = WireInit(0.U(32.W))
++  val ewindow_sz = WireInit(0.U(32.W))
++  val tsx_clk = WireInit(0.U(32.W))
++  val flush_pc = WireInit(0.U(VAddrBits.W))
++
++  when (io.flush) {
++    trg_tpe := t_flush
++
++    assert(valid(ringBufferTail).reduce(_ ^ _), "Flush error")
++    val flushSelect = PriorityMux(
++      (0 until RetireWidth).map(i => valid(ringBufferTail)(i)),
++      (0 until RetireWidth).map(_.U)
++    )
++    trg_pc := decode(ringBufferTail)(flushSelect).cf.pc
++    trg_inst := decode(ringBufferTail)(flushSelect).cf.instr
++
++    window_sz := enq_clk - rob_clk(ringBufferTail)(flushSelect)
++
++    flush_pc := trg_pc + 4.U
++    ewindow_sz := enq_clk - PriorityMux((0 until robSize).flatMap(i =>
++      (0 until robWidth).map(j => {
++        val ii = (i.U + ringBufferTail) % robSize.U
++        (valid(ii)(j) && !(i.U === 0.U && j.U <= flushSelect), rob_clk(ii)(j))
++      })) :+ (true.B, enq_clk))
++  } .elsewhen(io.exception) {
++    trg_tpe := t_xcpt
++    trg_pc := decode(ringBufferTail)(exceptionSelect).cf.pc
++    trg_inst := decode(ringBufferTail)(exceptionSelect).cf.instr
++    window_sz := enq_clk - rob_clk(ringBufferTail)(exceptionSelect)
++
++    flush_pc := trg_pc + 4.U
++    ewindow_sz := enq_clk - PriorityMux((0 until robSize).flatMap(i =>
++      (0 until robWidth).map(j => {
++        val ii = (i.U + ringBufferTail) % robSize.U
++        (valid(ii)(j) && !(i.U === 0.U && j.U <= exceptionSelect), rob_clk(ii)(j))
++      })) :+ (true.B, enq_clk))
++  } .elsewhen(io.mispredictRec.valid && io.mispredictRec.redirect.valid) {
++    trg_tpe := t_br
++
++    val row = io.mispredictRec.prfidx(prfAddrWidth-1, 1)
++    val way = io.mispredictRec.prfidx(0)
++
++    trg_pc := decode(row)(way).cf.pc
++    trg_inst := decode(row)(way).cf.instr
++    window_sz := enq_clk - rob_clk(row)(way)
++
++    flush_pc := PriorityMux((0 until robSize).flatMap(i =>
++      (0 until robWidth).map(j => {
++          val ii = (i.U + ringBufferTail) % robSize.U
++          (valid(ii)(j) && needMispredictionRecovery(brMask(ii)(j)), decode(ii)(j).cf.pc)
++        })) :+ (true.B, 0.U))
++
++    ewindow_sz := enq_clk - PriorityMux((0 until robSize).flatMap(i =>
++      (0 until robWidth).map(j => {
++        val ii = (i.U + ringBufferTail) % robSize.U
++        (valid(ii)(j) && needMispredictionRecovery(brMask(ii)(j)), rob_clk(ii)(j))
++      })) :+ (true.B, enq_clk))
++  }
++
++  when (io.flush || io.exception || (io.mispredictRec.valid && io.mispredictRec.redirect.valid)) {
++    printf("%d (0x%x) -> (0x%x) DASM(0x%x) [%d][%d]\n",
++      trg_tpe, trg_pc, flush_pc, trg_inst(31, 0), window_sz, ewindow_sz)
++  }
++
+   // Generate Debug Info
+     Debug(io.in(0).fire(), "[DISPATCH1] pc = 0x%x inst %x wen %x wdst %x\n", io.in(0).bits.cf.pc, io.in(0).bits.cf.instr, io.in(0).bits.ctrl.rfWen, io.in(0).bits.ctrl.rfDest)
+     Debug(io.in(1).fire(), "[DISPATCH2] pc = 0x%x inst %x wen %x wdst %x\n", io.in(1).bits.cf.pc, io.in(1).bits.cf.instr, io.in(1).bits.ctrl.rfWen, io.in(1).bits.ctrl.rfDest)
+diff --git a/src/main/scala/sim/NutShellSim.scala b/src/main/scala/sim/NutShellSim.scala
+index 5cdd414..e43dbaa 100644
+--- a/src/main/scala/sim/NutShellSim.scala
++++ b/src/main/scala/sim/NutShellSim.scala
+@@ -58,6 +58,11 @@ class NutShellSimTop extends Module {
+     val difftest = new DiffTestIO
+     val logCtrl = new LogCtrlIO
+     val difftestCtrl = new DiffTestCtrlIO
++
++    val spdoc_check = Input(Bool())
++    val spdoc_done = Output(Bool())
++
++    val interrupt = Input(Bool())
+   })
+ 
+   lazy val config = NutCoreConfig(FPGAPlatform = false)
+@@ -75,7 +80,11 @@ class NutShellSimTop extends Module {
+ 
+   mmio.io.rw <> soc.io.mmio
+ 
+-  soc.io.meip := mmio.io.meip
++  soc.io.meip := Cat(mmio.io.meip, io.interrupt)
++  // soc.io.meip := mmio.io.meip
++
++  soc.io.spdoc.check := io.spdoc_check
++  io.spdoc_done := soc.io.spdoc.done
+ 
+   val difftest = WireInit(0.U.asTypeOf(new DiffTestIO))
+   BoringUtils.addSink(difftest.commit, "difftestCommit")
+diff --git a/src/main/scala/system/NutShell.scala b/src/main/scala/system/NutShell.scala
+index 73bf6a1..dfe5107 100644
+--- a/src/main/scala/system/NutShell.scala
++++ b/src/main/scala/system/NutShell.scala
+@@ -41,6 +41,11 @@ class ILABundle extends NutCoreBundle {
+   val InstrCnt = UInt(64.W)
+ }
+ 
++class SpecDoctorIO extends Bundle {
++  val check = Input(Bool())
++  val done = Output(Bool())
++}
++
+ class NutShell(implicit val p: NutCoreConfig) extends Module with HasSoCParameter {
+   val io = IO(new Bundle{
+     val mem = new AXI4
+@@ -48,8 +53,13 @@ class NutShell(implicit val p: NutCoreConfig) extends Module with HasSoCParamete
+     val frontend = Flipped(new AXI4)
+     val meip = Input(UInt(Settings.getInt("NrExtIntr").W))
+     val ila = if (p.FPGAPlatform && EnableILA) Some(Output(new ILABundle)) else None
++
++    val spdoc = new SpecDoctorIO()
+   })
+ 
++  dontTouch(io.spdoc)
++  io.spdoc.done := DontCare
++
+   val nutcore = Module(new NutCore)
+   val cohMg = Module(new CoherenceManager)
+   val xbar = Module(new SimpleBusCrossbarNto1(2))
+diff --git a/src/main/scala/top/Settings.scala b/src/main/scala/top/Settings.scala
+index 95605c4..c006fa3 100644
+--- a/src/main/scala/top/Settings.scala
++++ b/src/main/scala/top/Settings.scala
+@@ -23,7 +23,7 @@ object DefaultSettings {
+     "MMIOBase" -> 0x0000000040000000L,
+     "MMIOSize" -> 0x0000000040000000L,
+     "ResetVector" -> 0x80000000L,
+-    "NrExtIntr" -> 1,
++    "NrExtIntr" -> 2,
+ 
+     "HasL2cache" -> true,
+     "HasPrefetch" -> true,
+diff --git a/src/test/csrc/emu.h b/src/test/csrc/emu.h
+index dff9493..9a794de 100644
+--- a/src/test/csrc/emu.h
++++ b/src/test/csrc/emu.h
+@@ -17,6 +17,7 @@
+ class Emulator {
+   const char *image;
+   std::shared_ptr<VNutShellSimTop> dut_ptr;
++  char *vcdfile;
+ #if VM_TRACE
+   VerilatedVcdC* tfp;
+ #endif
+@@ -49,11 +50,13 @@ class Emulator {
+   }
+ 
+   public:
++  bool timing;
++
+   // argv decay to the secondary pointer
+   Emulator(int argc, const char *argv[]):
+     image(nullptr),
+     dut_ptr(new std::remove_reference<decltype(*dut_ptr)>::type),
+-    seed(0), max_cycles(-1), cycles(0),
++    seed(0), max_cycles(-1), cycles(0), timing(false), vcdfile(NULL),
+     log_begin(0), log_end(-1), log_level(LOG_ALL)
+   {
+     // init emu
+@@ -100,7 +103,8 @@ class Emulator {
+     dut_ptr->eval();
+ 
+ #if VM_TRACE
+-    tfp->dump(cycles);
++    if (vcdfile != NULL)
++      tfp->dump(cycles);
+ #endif
+ 
+     cycles ++;
+@@ -108,6 +112,11 @@ class Emulator {
+   }
+ 
+   void execute_cycles(uint64_t n) {
++    extern bool spdoc_check();
++    extern void spdoc_done();
++    extern void check_cycle();
++    extern void display_cycle();
++
+     extern bool is_finish();
+     extern void poll_event(void);
+     extern uint32_t uptime(void);
+@@ -122,7 +131,9 @@ class Emulator {
+     VL_PRINTF("Enabling waves...\n");
+     tfp = new VerilatedVcdC;
+     dut_ptr->trace(tfp, 99);	// Trace 99 levels of hierarchy
+-    tfp->open("vlt_dump.vcd");	// Open the dump file
++    // tfp->open("vlt_dump.vcd");	// Open the dump file
++    if (vcdfile != NULL)
++      tfp->open(vcdfile);
+ #endif
+ 
+     while (!is_finish() && n > 0) {
+@@ -134,40 +145,54 @@ class Emulator {
+             "(please also check whether a fence.i instruction requires more than %d cycles to flush the icache)\n",
+             stuck_limit, stuck_limit);
+ #if VM_TRACE
+-        tfp->close();
++        if (vcdfile != NULL)
++          tfp->close();
+ #endif
+         set_abort();
+       }
+ 
+-      if (!hascommit && (uint32_t)dut_ptr->io_difftest_thisPC == 0x80000000) {
+-        hascommit = 1;
+-        extern void init_difftest(rtlreg_t *reg);
+-        rtlreg_t reg[DIFFTEST_NR_REG];
+-        read_emu_regs(reg);
+-        init_difftest(reg);
++//       if (!hascommit && (uint32_t)dut_ptr->io_difftest_thisPC == 0x80000000) {
++//         hascommit = 1;
++//         extern void init_difftest(rtlreg_t *reg);
++//         rtlreg_t reg[DIFFTEST_NR_REG];
++//         read_emu_regs(reg);
++//         init_difftest(reg);
++//       }
++
++//       // difftest
++//       if (dut_ptr->io_difftest_commit && hascommit) {
++//         rtlreg_t reg[DIFFTEST_NR_REG];
++//         read_emu_regs(reg);
++
++//         extern int difftest_step(rtlreg_t *reg_scala, uint32_t this_inst,
++//           int isMMIO, int isRVC, int isRVC2, uint64_t intrNO, int priviledgeMode, int isMultiCommit);
++//         if (dut_ptr->io_difftestCtrl_enable) {
++//           if (difftest_step(reg, dut_ptr->io_difftest_thisINST,
++//               dut_ptr->io_difftest_isMMIO, dut_ptr->io_difftest_isRVC, dut_ptr->io_difftest_isRVC2,
++//               dut_ptr->io_difftest_intrNO, dut_ptr->io_difftest_priviledgeMode,
++//               dut_ptr->io_difftest_isMultiCommit)) {
++// #if VM_TRACE
++//             tfp->close();
++// #endif
++//             set_abort();
++//           }
++//         }
++//         lastcommit = n;
++//       }
++
++      if (dut_ptr->io_spdoc_done) {
++        if (!timing) {
++          spdoc_done();
++          break;
++        } else dut_ptr->io_interrupt = 1;
+       }
+ 
+-      // difftest
+-      if (dut_ptr->io_difftest_commit && hascommit) {
+-        rtlreg_t reg[DIFFTEST_NR_REG];
+-        read_emu_regs(reg);
+-
+-        extern int difftest_step(rtlreg_t *reg_scala, uint32_t this_inst,
+-          int isMMIO, int isRVC, int isRVC2, uint64_t intrNO, int priviledgeMode, int isMultiCommit);
+-        if (dut_ptr->io_difftestCtrl_enable) {
+-          if (difftest_step(reg, dut_ptr->io_difftest_thisINST,
+-              dut_ptr->io_difftest_isMMIO, dut_ptr->io_difftest_isRVC, dut_ptr->io_difftest_isRVC2,
+-              dut_ptr->io_difftest_intrNO, dut_ptr->io_difftest_priviledgeMode, 
+-              dut_ptr->io_difftest_isMultiCommit)) {
+-#if VM_TRACE
+-            tfp->close();
+-#endif
+-            set_abort();
+-          }
+-        }
+-        lastcommit = n;
++      if (spdoc_check()) {
++        dut_ptr->io_spdoc_check = 1;
+       }
+ 
++      check_cycle();
++
+       uint32_t t = uptime();
+       if (t - lasttime > 100) {
+         poll_event();
+diff --git a/src/test/csrc/main.cpp b/src/test/csrc/main.cpp
+index c0105e4..89aa65d 100644
+--- a/src/test/csrc/main.cpp
++++ b/src/test/csrc/main.cpp
+@@ -23,6 +23,8 @@ const struct option Emulator::long_options[] = {
+   { "log-begin",      1, NULL, 'b' },
+   { "log-end",        1, NULL, 'e' },
+   { "verbose",        1, NULL, 'v' },
++  { "timing",         0, NULL, 't' },
++  { "vcd",            1, NULL, 'd' },
+   { "help",           0, NULL, 'h' },
+   { 0,                0, NULL,  0  }
+ };
+@@ -36,6 +38,8 @@ void Emulator::print_help(const char *file) {
+   printf("  -b, --log-begin=NUM   display log from NUM th cycle\n");
+   printf("  -e, --log-end=NUM     stop display log at NUM th cycle\n");
+   printf("  -v, --verbose=STR     verbosity level, can be one of [ALL, DEBUG, INFO, WARN, ERROR]\n");
++  printf("  -t, --timing          enable SpecDoctor cycle measurement\n");
++  printf("  -d, --vcd=STR         dump vcd to STR");
+   printf("  -h, --help            print program help info\n");
+   printf("\n");
+ }
+@@ -43,7 +47,7 @@ void Emulator::print_help(const char *file) {
+ std::vector<const char *> Emulator::parse_args(int argc, const char *argv[]) {
+   std::vector<const char *> args = { argv[0] };
+   int o;
+-  while ( (o = getopt_long(argc, const_cast<char *const*>(argv), "-s:C:hi:m:b:e:v:", long_options, NULL)) != -1) {
++  while ( (o = getopt_long(argc, const_cast<char *const*>(argv), "-s:C:hi:m:b:e:v:td:", long_options, NULL)) != -1) {
+     switch (o) {
+       case 's': 
+         if(std::string(optarg) != "NO_SEED") {
+@@ -59,6 +63,8 @@ std::vector<const char *> Emulator::parse_args(int argc, const char *argv[]) {
+       case 'b': log_begin = atoll(optarg);  break;
+       case 'e': log_end = atoll(optarg); break;
+       case 'v': log_level = getLogLevel(optarg); break;
++      case 't': timing = true; break;
++      case 'd': vcdfile = optarg; break;
+       default:
+                 print_help(argv[0]);
+                 exit(0);
+@@ -80,10 +86,13 @@ int main(int argc, const char** argv) {
+   extern uint32_t uptime(void);
+   uint32_t ms = uptime();
+ 
+-  int display_trapinfo(uint64_t max_cycles);
+-  int ret = display_trapinfo(emu.get_max_cycles());
+-  eprintf(ANSI_COLOR_BLUE "Guest cycle spent: %" PRIu64 "\n" ANSI_COLOR_RESET, emu.get_cycles());
+-  eprintf(ANSI_COLOR_BLUE "Host time spent: %dms\n" ANSI_COLOR_RESET, ms);
++  int display_trapinfo(uint64_t max_cycles, uint64_t cycles);
++  int ret = display_trapinfo(emu.get_max_cycles(), emu.get_cycles());
++
++  void display_cycle(bool timing);
++  display_cycle(emu.timing);
++  // eprintf(ANSI_COLOR_BLUE "Guest cycle spent: %" PRIu64 "\n" ANSI_COLOR_RESET, emu.get_cycles());
++  // eprintf(ANSI_COLOR_BLUE "Host time spent: %dms\n" ANSI_COLOR_RESET, ms);
+ 
+   return ret;
+ }
+diff --git a/src/test/csrc/monitor.cpp b/src/test/csrc/monitor.cpp
+index 15e6c00..67dfcf9 100644
+--- a/src/test/csrc/monitor.cpp
++++ b/src/test/csrc/monitor.cpp
+@@ -2,17 +2,37 @@
+ #include <inttypes.h>
+ 
+ enum {
+-  STATE_GOODTRAP = 0,
+-  STATE_BADTRAP,
+-  STATE_ABORT,
++  STATE_GOODTRAP = 0, // 0
++  STATE_BADTRAP,      // 1
++  STATE_ABORT,        // 2
++  STATE_SPDOC_CHECK,  // 3
++  STATE_CYCLE_START,  // 4
++  STATE_CYCLE_END,    // 5
+   STATE_RUNNING = -1
+ };
+ 
+ static int g_trapCode = STATE_RUNNING;
+ static uint64_t g_trapPC = 0;
+ static uint64_t g_cycleCnt = 0, g_instrCnt = 0;
++static uint64_t cycle_s = 0, cycle_e = 0;
+ 
+-bool is_finish() { return g_trapCode != STATE_RUNNING; }
++bool spdoc_check() { return g_trapCode == STATE_SPDOC_CHECK; }
++void spdoc_done() { g_trapCode = STATE_GOODTRAP; }
++
++void check_cycle() {
++  if (g_trapCode == STATE_CYCLE_START)
++    cycle_s = g_cycleCnt;
++  else if (g_trapCode == STATE_CYCLE_END)
++    cycle_e = g_cycleCnt;
++}
++
++void display_cycle(bool timing) {
++  if (timing)
++    eprintf("[SpecDoctor] Cycle: %ld\n", cycle_e - cycle_s);
++}
++
++bool is_finish() { return g_trapCode != STATE_RUNNING && g_trapCode != STATE_SPDOC_CHECK
++    && g_trapCode != STATE_CYCLE_START && g_trapCode != STATE_CYCLE_END; }
+ 
+ extern "C" void monitor(int trapCode, uint64_t trapPC, uint64_t cycleCnt, uint64_t instrCnt) {
+   g_trapCode = trapCode;
+@@ -25,25 +45,36 @@ void set_abort(void) {
+   g_trapCode = STATE_ABORT;
+ }
+ 
+-int display_trapinfo(uint64_t max_cycles) {
++int display_trapinfo(uint64_t max_cycles, uint64_t cycles) {
+   switch (g_trapCode) {
+     case STATE_GOODTRAP:
+-      eprintf(ANSI_COLOR_GREEN "HIT GOOD TRAP at pc = 0x%" PRIx64 "\n" ANSI_COLOR_RESET, g_trapPC);
+-      break;
+-    case STATE_BADTRAP:
+-      eprintf(ANSI_COLOR_RED "HIT BAD TRAP at pc = 0x%" PRIx64 "\n" ANSI_COLOR_RESET, g_trapPC);
+-      break;
+-    case STATE_ABORT:
+-      eprintf(ANSI_COLOR_RED "ABORT at pc = 0x%" PRIx64 "\n" ANSI_COLOR_RESET, g_trapPC);
+-      break;
+-    case STATE_RUNNING:
+-      eprintf(ANSI_COLOR_RED "Timeout after %" PRIx64 " cycles\n" ANSI_COLOR_RESET, max_cycles);
++      eprintf("*** PASSED *** Completed after %ld cycles\n", cycles);
+       break;
++    default:
++      eprintf("*** FAILED ***\n");
+   }
+ 
+-  double ipc = (double)g_instrCnt / g_cycleCnt;
+-  eprintf(ANSI_COLOR_MAGENTA "total guest instructions = %" PRIu64 "\n" ANSI_COLOR_RESET, g_instrCnt);
+-  eprintf(ANSI_COLOR_MAGENTA "instrCnt = %" PRIu64 ", cycleCnt = %" PRIu64 ", IPC = %lf\n" ANSI_COLOR_RESET,
+-      g_instrCnt, g_cycleCnt, ipc);
++  // switch (g_trapCode) {
++  //   case STATE_SPDOC_CHECK:
++  //     eprintf(ANSI_COLOR_GREEN "HIT SPDOC CHECK at pc = 0x%" PRIx64 "\n" ANSI_COLOR_RESET, g_trapPC);
++  //     break;
++  //   case STATE_GOODTRAP:
++  //     eprintf(ANSI_COLOR_GREEN "HIT GOOD TRAP at pc = 0x%" PRIx64 "\n" ANSI_COLOR_RESET, g_trapPC);
++  //     break;
++  //   case STATE_BADTRAP:
++  //     eprintf(ANSI_COLOR_RED "HIT BAD TRAP at pc = 0x%" PRIx64 "\n" ANSI_COLOR_RESET, g_trapPC);
++  //     break;
++  //   case STATE_ABORT:
++  //     eprintf(ANSI_COLOR_RED "ABORT at pc = 0x%" PRIx64 "\n" ANSI_COLOR_RESET, g_trapPC);
++  //     break;
++  //   case STATE_RUNNING:
++  //     eprintf(ANSI_COLOR_RED "Timeout after %" PRIx64 " cycles\n" ANSI_COLOR_RESET, max_cycles);
++  //     break;
++  // }
++
++  // double ipc = (double)g_instrCnt / g_cycleCnt;
++  // eprintf(ANSI_COLOR_MAGENTA "total guest instructions = %" PRIu64 "\n" ANSI_COLOR_RESET, g_instrCnt);
++  // eprintf(ANSI_COLOR_MAGENTA "instrCnt = %" PRIu64 ", cycleCnt = %" PRIu64 ", IPC = %lf\n" ANSI_COLOR_RESET,
++  //     g_instrCnt, g_cycleCnt, ipc);
+   return g_trapCode != STATE_GOODTRAP;
+ }
