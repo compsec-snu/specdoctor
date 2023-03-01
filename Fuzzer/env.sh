@@ -12,7 +12,7 @@ source $PWD/../env.sh
 export ISIM=${chipyard}/toolchains/riscv-tools/riscv-isa-sim/build/spike
 
 if [[ ${1} == "Boom" ]]; then
-    export RSIM=${chipyard}/sims/verilator/simulator-chipyard-SpecDoctorBoomConfig-debug
+    export RSIM=${chipyard}/sims/verilator/simulator-chipyard-SpecDoctorBoomConfig
     export TARGET=Boom
 
     rm -rf boom-logs
