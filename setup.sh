@@ -125,7 +125,7 @@ popd
 echo "[**] compile SpecDoctorNutShell"
 
 pushd ${nutshell}
-TOPMODULE=NutCore make emu
+TOPMODULE=NutCore make ./build/emu
 popd
 
 # export env variables
